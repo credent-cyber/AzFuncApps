@@ -9,25 +9,24 @@ using System.Net.Http;
 
 using System.Linq;
 using PnP.Core.Model.SharePoint;
-using Demo.ITextSharp;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
-
-using DocumentFormat.OpenXml.Wordprocessing;
 using System;
 using PnP.Core.QueryModel;
 using System.Collections.Concurrent;
-using System.Threading;
-using Microsoft.Identity.Client;
+
 
 namespace Demo.Function
 {
+    using System.Collections.Generic;
+    using DocumentFormat.OpenXml.Wordprocessing;
+
     public class HttpTriggerSharepointServices
     {
         private const string APPROVAL_HISTORY_LIST_NAME = "ApprovalHistory";
         private const int BORDER_WIDTH = 1;
         readonly IPnPContextFactory _pnpContextFactory;
-        private static ConcurrentDictionary<string, string> _runningTasks = new ConcurrentDictionary<string, string> ();
+        private static ConcurrentDictionary<string, string> _runningTasks = new ConcurrentDictionary<string, string>();
         public HttpTriggerSharepointServices(IPnPContextFactory pnpContextFactory, ILogger<HttpTriggerSharepointServices> logger)
         {
             _pnpContextFactory = pnpContextFactory;
@@ -50,298 +49,7 @@ namespace Demo.Function
         }
 
         /// <summary>
-        /// Convert .DWG file to PDF on the fly
-        /// </summary>
-        /// <param name="req"></param>
-        /// <returns></returns>
-        [FunctionName("HttpTrigger1DwgToPdf")]
-        public async Task<IActionResult> RunDwgToPdf(
-           [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequestMessage req)
-        {
-            
-            IActionResult fileResult = null;
-
-            #region Parameters
-            string outFilePath = string.Empty;
-            var destSpFolder = "DwgToPdf";
-            var libname = "Documents";
-            var flname = "example.dwg";
-            var portalKey = "TestPortal";
-            var download = false;
-            var qry = req.RequestUri.ParseQueryString().GetValues("d");
-            var qryd = req.RequestUri.ParseQueryString().GetValues("dwnld");
-            var qrylib = req.RequestUri.ParseQueryString().GetValues("lib");
-            var qryPortal = req.RequestUri.ParseQueryString().GetValues("pkey");
-            var qryDest = req.RequestUri.ParseQueryString().GetValues("dest");
-
-            if (qry != null)
-                flname = qry.FirstOrDefault();
-
-            if (qryd != null)
-                bool.TryParse(qryd.FirstOrDefault(), out download);
-
-            if (qrylib != null)
-                libname = qrylib.FirstOrDefault();
-
-            if (qryPortal != null)
-                portalKey = qryPortal.FirstOrDefault();
-            if (qryDest != null)
-                destSpFolder = qryDest.FirstOrDefault();
-            #endregion
-
-            if (_runningTasks.ContainsKey(flname))
-                return new JsonResult(new { Status = "In progress" });
-
-            
-            Action task = new Action(async () =>
-            {
-
-                Logger.LogInformation("C# HTTP trigger function processed a request.");
-                var result = new { };
-
-                using (var ctx = await _pnpContextFactory.CreateAsync(portalKey))
-                {
-                    var destinationLibrary = await ctx.Web.Lists.GetByTitleAsync(destSpFolder, l => l.RootFolder);
-                    var shareDocuments = await ctx.Web.Lists.GetByTitleAsync(libname, l => l.RootFolder);
-
-                    var folderContents = await shareDocuments.RootFolder.GetAsync(o => o.Files);
-                    var documents = from d in folderContents.Files.Where(o => o.Name.ToLower() == flname.ToLower()).AsEnumerable()
-                                    select new
-                                    {
-                                        d.Name,
-                                        d.TimeLastModified,
-                                        d.UniqueId
-                                    };
-
-                    IFile dwgFile = null;
-
-                    var tmpLocation = System.IO.Path.GetTempPath();
-
-                    foreach (var fl in folderContents.Files.AsEnumerable())
-                    {
-                        if (Path.GetFileName(fl.Name).Contains(flname))
-                        {
-                            Logger.LogInformation("Dwg found");
-                            Logger.LogInformation(fl.Name);
-                            dwgFile = fl;
-                            break;
-                        }
-                    }
-
-                   
-                    var tmpFileName = Path.GetFileNameWithoutExtension(flname);
-                    var oflName = $"{tmpFileName}.pdf";
-                    outFilePath = Path.Combine(tmpLocation, oflName);
-
-                    if (File.Exists(outFilePath))
-                    {
-                        try
-                        {
-                            File.Delete(outFilePath);
-                        }
-                        catch (Exception)
-                        {
-                            Logger.LogInformation($"Outfile existed");
-                            Logger.LogWarning($"couldn't clean outfile - {outFilePath}");
-                        }
-                    }
-
-                    Logger.LogInformation($"Outfile: {outFilePath}");
-
-                    if (dwgFile != null)
-                    {
-                        await dwgFile.ListItemAllFields.LoadAsync();
-
-                        var status = dwgFile.ListItemAllFields["ProcessComplete"]?.ToString();
-                        
-                        if (status == "Y")
-                        {
-                            Logger.LogInformation($"File[{flname}] was already processed");
-                            return;
-                        }
-
-                        Logger.LogInformation($"converting file [{dwgFile}] to pdf");
-                        using (var ms = new MemoryStream())
-                        {
-                            var bufferSize = 2 * 1024 * 1024;
-                            using (var stream = await dwgFile.GetContentAsync(streamContent: true))
-                            {
-                                var buffer = new byte[bufferSize];
-                                int read;
-                                while ((read = await stream.ReadAsync(buffer, 0, buffer.Length)) != 0)
-                                {
-                                    await ms.WriteAsync(buffer, 0, read);
-                                }
-                            };
-
-                            ms.Seek(0, SeekOrigin.Begin);
-
-                            Logger.LogInformation($"Downloading file - done");
-                            //  Logger.LogInformation($"Downloading file content size - {contentLength}");
-                            if (true)
-                            {
-                                try
-                                {
-                                    //stream = new FileStream(@"D:\Downloads\sample1.dwg", FileMode.Open, FileAccess.Read);
-                                    var opt = new Aspose.CAD.LoadOptions();
-                                    var running = true;
-                                    // update progress
-                                    dwgFile.ListItemAllFields["ProcessingStatus"] = $"{DateTime.Now}|Started";
-                                    await dwgFile.ListItemAllFields.UpdateAsync();
-                                    
-                                    Task statusTask = Task.Factory.StartNew(async () =>
-                                    {
-                                        while (running)
-                                        {
-                                            Thread.Sleep(1000 * 60);
-                                            dwgFile.ListItemAllFields["ProcessingStatus"] = $"{DateTime.Now}|LastUpdated";
-                                            await dwgFile.ListItemAllFields.UpdateAsync();
-                                        }
-                                    });
-
-                                    using (var img = Aspose.CAD.Image.Load(ms, opt))
-                                    {
-                                        Aspose.CAD.ImageOptions.CadRasterizationOptions rasterizationOptions = new Aspose.CAD.ImageOptions.CadRasterizationOptions();
-                                        rasterizationOptions.PageWidth = img.Width;
-                                        rasterizationOptions.PageHeight = img.Height;
-                                        rasterizationOptions.AutomaticLayoutsScaling = true;
-                                        rasterizationOptions.NoScaling = false;
-                                        rasterizationOptions.Margins = new Aspose.CAD.ImageOptions.Margins()
-                                        {
-                                            Left = 5,
-                                            Right = 5,
-                                            Bottom = 5,
-                                            Top = 5
-                                        };
-
-                                        // Create an instance of PdfOptions
-                                        Aspose.CAD.ImageOptions.PdfOptions pdfOptions = new Aspose.CAD.ImageOptions.PdfOptions();
-
-                                        //Set the VectorRasterizationOptions property
-                                        pdfOptions.VectorRasterizationOptions = rasterizationOptions;
-
-                                        //Export CAD to PDF
-                                        using (var os = new MemoryStream())
-
-                                            img.Save(ms, pdfOptions);
-
-                                        ms.Seek(0, SeekOrigin.Begin);
-                                        // save to destination sharepoint library
-                                        await destinationLibrary.RootFolder.Files.AddAsync(oflName, ms, true);
-                                        running = false;
-                                        statusTask.Wait();
-                                        dwgFile.ListItemAllFields["ProcessingStatus"] = $"{DateTime.Now}|Completed";
-                                        dwgFile.ListItemAllFields["ProcessComplete"] = $"Y";
-                                        await dwgFile.ListItemAllFields.UpdateAsync();
-
-                                        Logger.LogInformation($"conversion of file [{dwgFile}] to pdf is done");
-                                    }
-                                }
-                                catch (Exception ex)
-                                {
-                                    Logger.LogError(ex, ex.Message);
-                                    throw;
-                                }
-
-                                finally
-                                {
-                                    _runningTasks.TryRemove(flname, out string value);
-                                }
-
-                                fileResult = new PhysicalFileResult(outFilePath, "application/pdf")
-                                {
-                                    FileDownloadName = oflName,
-                                };
-
-                               
-                            }
-                        }
-                    }
-                    else
-                    {
-                        fileResult = new NotFoundResult();
-                    }
-                }
-            });
-
-            //if (download)
-            //{
-            //    Task.Factory.StartNew(task).Wait();
-            //    return await Task.FromResult(fileResult);
-            //}
-           
-            Task.Run(task).ContinueWith((t) =>
-            {
-                Logger.LogInformation("DwgToPdf task is done");
-            }).Wait(0);
-
-            await Task.CompletedTask;
-
-            return new JsonResult(new { Status = "Queued"});
-        }
-
-
-        [FunctionName("HttpTrigger1MyFunc")]
-        public async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequestMessage req)
-        {
-            Logger.LogInformation("C# HTTP trigger function processed a request.");
-            var result = new { };
-
-            using (var ctx = await _pnpContextFactory.CreateAsync("Default"))
-            {
-                var shareDocuments = await ctx.Web.Lists.GetByTitleAsync("Documents", l => l.RootFolder);
-                var folderContents = await shareDocuments.RootFolder.GetAsync(o => o.Files);
-                var documents = from d in folderContents.Files.AsEnumerable()
-                                select new
-                                {
-                                    d.Name,
-                                    d.TimeLastModified,
-                                    d.UniqueId
-                                };
-
-                IFile pdf = null;
-                var tmpLocation = System.IO.Path.GetTempPath();
-
-                foreach (var fl in folderContents.Files.AsEnumerable())
-                {
-                    if (Path.GetExtension(fl.Name) == ".pdf")
-                    {
-                        Logger.LogInformation("Pdf found");
-                        Logger.LogInformation(fl.Name);
-                        pdf = fl;
-                        break;
-                    }
-                }
-                var outFilePath = Path.Combine(tmpLocation, "sample-signed-01.pdf");
-                Logger.LogInformation($"Outfile: {outFilePath}");
-                if (pdf != null)
-                {
-                    var contents = pdf.GetContentBytes();
-                    if (contents.Length > 0)
-                    {
-                        SignatureHelper.Sign(contents,
-                            outFilePath,
-                            @"D:\Azure Certifications\az204\Tutorials\myfunc\Certificates\PnP.Core.SDK.AzureFunctionSample.cer",
-                            "Approved",
-                            "NOIDA, INDIA"
-                            );
-
-                        return new PhysicalFileResult(outFilePath, "application/pdf");
-                    }
-                }
-                else
-                {
-                    return new JsonResult(documents);
-                }
-
-            }
-
-            return new NotFoundResult();
-        }
-
-        /// <summary>
-        /// Adds approval history of a office 365 docx from a sharepoint library, run against TestPortal site
+        /// Adds approval history of a office 365 docx from a sharepoint library, run against requested site : TestPortal, configured SiteUrl
         /// </summary>
         /// <param name="req"></param>
         /// <returns></returns>
@@ -350,18 +58,99 @@ namespace Demo.Function
         public async Task<IActionResult> Run2(
             [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequestMessage req)
         {
+
+            #region Parameters
             Logger.LogInformation("C# HTTP trigger function processed a request.");
 
-            var result = new { };
+            try
+            {
+                var result = new { };
+                string docid, libname, flname, destSpFolder, targetSite;
+                bool download;
 
-            var docid = string.Empty;
-            var libname = "Documents";
-            var flname = "Document.docx";
-            var download = false;
+                ReadDocumentApprovalHistoryParameters(req, out docid, out libname, out flname, out download, out destSpFolder, out targetSite);
+
+                #endregion
+
+                using (var ctx = await _pnpContextFactory.CreateAsync(targetSite))
+                {
+                    var fileInfo = await QueryFileAndMetaData(libname, flname, ctx);
+
+                    if (string.IsNullOrWhiteSpace(docid))
+                        docid = fileInfo.Id.ToString();
+
+                    var destinationLibrary = await ctx.Web.Lists.GetByTitleAsync(destSpFolder, l => l.RootFolder);
+
+                    var shareDocuments = await ctx.Web.Lists.GetByTitleAsync(libname, l => l.RootFolder);
+
+                    IFile docx = shareDocuments.RootFolder.Files.FirstOrDefault(o => o.Name == flname);
+
+                    var folderContents = await shareDocuments.RootFolder.GetAsync(o => o.Files);
+
+                    if (docx == null || string.IsNullOrEmpty(docid))
+                        return new NotFoundResult();
+
+                    else
+                    {
+                        IEnumerable<IListItem> historyItems = await GetApprovalHistory(docid, ctx, fileInfo.RevisionNo);
+
+                        var bytes = docx.GetContentBytes();
+                        var tmpflName = Guid.NewGuid().ToString();
+                        var tmpDocx = Path.Combine(Path.GetTempPath(), $"{tmpflName}.docx");
+                        File.WriteAllBytes(tmpDocx, bytes);
+                        using (var doc = WordprocessingDocument.Open(tmpDocx, true))
+                        {
+                            Table table;
+                            OpenXmlAttribute attrib;
+
+                            CleanExistingTable(doc, out table, out attrib);
+
+                            table = CreateApprovalHistoryTable(attrib);
+                            AppendApprovalHistory(historyItems, doc, table);
+                        }
+
+                        try
+                        {
+                            await PublishDocument(flname, destinationLibrary, tmpDocx);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.Error.WriteLine(ex.Message);
+                        }
+
+                        if (download)
+                        {
+                            return DownloadPublishedDocument(flname, tmpDocx);
+                        }
+                        else
+                            return new JsonResult(new { Success = true });
+                    }
+
+
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogCritical(ex, ex.Message);
+                throw;
+            }
+        }
+
+        private static void ReadDocumentApprovalHistoryParameters(HttpRequestMessage req, out string docid, out string libname, out string flname, out bool download, out string destSpFolder, out string targetSite)
+        {
+            docid = string.Empty;
+            libname = "DmsDocument";
+            flname = "CM-UDR-1-V2.docx";
+            download = false;
+            var debug = false;
+            destSpFolder = "PublishedDocument";
             var qry = req.RequestUri.ParseQueryString().GetValues("d");
             var qryd = req.RequestUri.ParseQueryString().GetValues("dwnld");
             var qrylib = req.RequestUri.ParseQueryString().GetValues("lib");
             var qDocId = req.RequestUri.ParseQueryString().GetValues("docid");
+            var qDebug = req.RequestUri.ParseQueryString().GetValues("debug");
+            var qPFolder = req.RequestUri.ParseQueryString().GetValues("pfolder");
+
             if (qry != null)
                 flname = qry.FirstOrDefault();
 
@@ -374,164 +163,186 @@ namespace Demo.Function
             if (qDocId != null)
                 docid = qDocId.FirstOrDefault();
 
-            using (var ctx = await _pnpContextFactory.CreateAsync("TestPortal"))
+            if (qDebug != null)
+                bool.TryParse(qDebug.FirstOrDefault(), out debug);
+
+            if (qPFolder != null)
+                destSpFolder = qPFolder.FirstOrDefault();
+
+            targetSite = "Default";
+            if (debug)
+                targetSite = "TestPortal";
+        }
+
+        private static IActionResult DownloadPublishedDocument(string flname, string tmpDocx)
+        {
+            return new PhysicalFileResult(tmpDocx, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
             {
-                var shareDocuments = await ctx.Web.Lists.GetByTitleAsync(libname, l => l.RootFolder);
-                var folderContents = await shareDocuments.RootFolder.GetAsync(o => o.Files);
+                FileDownloadName = flname
+            };
+        }
 
-                var documents = from d in folderContents.Files.AsEnumerable()
-                                select new
-                                {
-                                    d.Name,
-                                    d.TimeLastModified,
-                                    d.UniqueId
-                                };
-
-                IFile docx = null;
-                var tmpLocation = System.IO.Path.GetTempPath();
-
-                foreach (var fl in folderContents.Files.AsEnumerable())
+        private async Task PublishDocument(string flname, IList destinationLibrary, string tmpDocx)
+        {
+            using (Stream s = new FileStream(tmpDocx, FileMode.Open))
+            {
+                try
                 {
-
-                    if (fl.Name == flname)
-                    {
-                        Logger.LogInformation($"docid:{docid}");
-                        Logger.LogInformation("Docx found");
-                        Logger.LogInformation(fl.Name);
-                        docx = fl;
-                        // return new NotFoundResult();
-                    }
+                    // save to destination folder
+                    await destinationLibrary.RootFolder.Files.AddAsync(flname, s, true);
                 }
-
-
-
-                if (docx == null || string.IsNullOrEmpty(docid))
-                    return new NotFoundResult();
-
-                else
+                catch (System.Exception ex)
                 {
+                    Logger.LogError(ex, ex.Message + ex.StackTrace);
 
-                    string viewXml = @"<View>
+                }
+            }
+        }
+
+        private static void AppendApprovalHistory(IEnumerable<IListItem> historyItems, WordprocessingDocument doc, Table table)
+        {
+            foreach (var item in historyItems)
+            {
+                var level = Convert.ToString(item["Level"]);
+                var role = Convert.ToString(item["Role"]);
+                var approvalDate = Convert.ToDateTime(item["Created"]).ToString("dd-MMM-yyyy");
+                var approve = Convert.ToString(item["UserName"]);
+
+                TableRow tr = new TableRow();
+                TableRowProperties trProp = new TableRowProperties(new TableRowHeight
+                {
+                    HeightType = new EnumValue<HeightRuleValues>(HeightRuleValues.Auto),
+                });
+
+                CreateCell(level, tr);
+                CreateCell(role, tr);
+                CreateCell(approve, tr, false, 2160);
+                CreateCell(approvalDate, tr);
+
+                table.Append(tr);
+
+            }
+
+            // Append the table to the document.
+            doc.MainDocumentPart.Document.Body.Append(table);
+            doc.Save();
+        }
+
+        private static Table CreateApprovalHistoryTable(OpenXmlAttribute attrib)
+        {
+            Table table = new Table();
+            table.SetAttribute(attrib);
+
+            TableProperties tblProp = CreateTableProperties();
+            table.AppendChild<TableProperties>(tblProp);
+
+            TableRow trHead = new TableRow();
+
+            CreateCell("Level in Route", trHead, true);
+            CreateCell("Role/Designation", trHead, true);
+            CreateCell("Name of the Approver", trHead, true);
+            CreateCell("Date of Approval", trHead, true);
+
+            table.Append(trHead);
+            return table;
+        }
+
+        private static void CleanExistingTable(WordprocessingDocument doc, out Table table, out OpenXmlAttribute attrib)
+        {
+            var tables = doc.MainDocumentPart.Document.Body.Elements<Table>();
+
+            table = doc.MainDocumentPart.Document.Body.Elements<Table>().FirstOrDefault(o => o.LocalName == "tbl");
+            attrib = new OpenXmlAttribute("tbl", "history", "", "table");
+            if (table != null)
+            {
+                doc.MainDocumentPart.Document.Body.RemoveChild(table);
+                doc.Save();
+            }
+        }
+
+        private async Task<IEnumerable<IListItem>> GetApprovalHistory(string docid, PnPContext ctx, string revision)
+        {
+            string viewXml = @"<View>
                     <Query>
                       <Where>
+                        <And>
                         <Eq>
                           <FieldRef Name='DMSID'/>
                           <Value Type='text'>" + docid + @"</Value>
                         </Eq>
+                        <Eq>
+                          <FieldRef Name='RevisionNo'/>
+                          <Value Type='text'>" + revision + @"</Value>
+                        </Eq>
+                       </And>
                       </Where>
                     </Query>
                    </View>";
 
-                    var approvalhistory = ctx.Web.Lists.GetByTitle(APPROVAL_HISTORY_LIST_NAME);
-                    await approvalhistory.LoadItemsByCamlQueryAsync(new CamlQueryOptions
-                    {
-                        ViewXml = viewXml,
-                        DatesInUtc = false,
-                    });
+            var approvalhistory = ctx.Web.Lists.GetByTitle(APPROVAL_HISTORY_LIST_NAME);
+            await approvalhistory.LoadItemsByCamlQueryAsync(new CamlQueryOptions
+            {
+                ViewXml = viewXml,
+                DatesInUtc = false,
+            });
 
-                    var historyItems = approvalhistory.Items.AsRequested();
+            var historyItems = approvalhistory.Items.AsRequested();
 
-                    var bytes = docx.GetContentBytes();
-                    var tmpflName = Guid.NewGuid().ToString();
-                    var tmpDocx = Path.Combine(Path.GetTempPath(), $"{tmpflName}.docx");
-                    File.WriteAllBytes(tmpDocx, bytes);
-                    using (var doc = WordprocessingDocument.Open(tmpDocx, true))
-                    {
-                        var tables = doc.MainDocumentPart.Document.Body.Elements<Table>();
-
-                        var table = doc.MainDocumentPart.Document.Body.Elements<Table>().FirstOrDefault(o => o.LocalName == "tbl");
-
-                        var attrib = new OpenXmlAttribute("tbl", "history", "", "table");
-
-                        if (table != null)
-                        {
-                            doc.MainDocumentPart.Document.Body.RemoveChild(table);
-                            doc.Save();
-                        }
-
-                        table = new Table();
-
-                        table.SetAttribute(attrib);
-
-                        TableProperties tblProp = CreateTableProperties();
-
-                        // Append the TableProperties object to the empty table.
-                        table.AppendChild<TableProperties>(tblProp);
-
-                        TableRow trHead = new TableRow();
-
-                        CreateCell("Role", trHead, true);
-                        CreateCell("Name", trHead, true);
-                        CreateCell("Date Of Approval", trHead, true);
-                        CreateCell("Comment", trHead, true);
-                        CreateCell("Action", trHead, true);
-                        table.Append(trHead);
-
-                        foreach (var item in historyItems)
-                        {
-                            var val1 = Convert.ToString(item["Role"]);
-                            var val2 = Convert.ToString(item["UserName"]);
-                            var val3 = Convert.ToDateTime(item["Created"]).ToString("dd-MMM-yyyy");
-                            var val4 = Convert.ToString(item["Comment"]);
-                            var val5 = Convert.ToString(item["Action"]);
-
-                            TableRow tr = new TableRow();
-
-                            TableRowProperties trProp = new TableRowProperties(new TableRowHeight
-                            {
-                                HeightType = new EnumValue<HeightRuleValues>(HeightRuleValues.Auto),
-                            });
-
-                            CreateCell(val1, tr);
-                            CreateCell(val2, tr);
-                            CreateCell(val3, tr);
-                            CreateCell(val4, tr, false, 2160);
-                            CreateCell(val5, tr);
-
-                            table.Append(tr);
-
-                        }
-
-                        // Append the table to the document.
-                        doc.MainDocumentPart.Document.Body.Append(table);
-
-                        doc.Save();
-                    }
-
-                    try
-                    {
-                        using (Stream s = new FileStream(tmpDocx, FileMode.Open))
-                        {
-                            try
-                            {
-                                await folderContents.Files.AddAsync(flname, s, true);
-                            }
-                            catch (System.Exception ex)
-                            {
-                                Logger.LogError(ex, ex.Message + ex.StackTrace);
-
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.Error.WriteLine(ex.Message);
-                        //throw;
-                    }
-
-                    if (download)
-                    {
-                        return new PhysicalFileResult(tmpDocx, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-                        {
-                            FileDownloadName = flname
-                        };
-                    }
-                    else
-                        return new JsonResult(new { Success = true });
-                }
-
-
+            if (historyItems?.Count() == 0)
+            {
+                Logger.LogError($"Approval History for the document {docid} not found");
+                throw new Exception("Approval history not found");
             }
+
+            return historyItems;
+        }
+
+        private async Task<(string DocumentName, string RevisionNo, int Id, string DocID)> QueryFileAndMetaData(string libname, string flname, PnPContext ctx)
+        {
+            // Assume the fields where not yet loaded, so loading them with the list
+            var myList = ctx.Web.Lists.GetByTitle(libname, p => p.Title,
+                                                                 p => p.Fields.QueryProperties(p => p.InternalName,
+                                                                                               p => p.FieldTypeKind,
+                                                                                               p => p.TypeAsString,
+                                                                                               p => p.Title));
+
+            // Build a query that only returns the Title field for items where the Title field starts with "Item1"
+            string viewXml1 = @"<View>
+                    <ViewFields>
+                      <FieldRef Name='Title' />
+                      <FieldRef Name='Name' />
+                      <FieldRef Name='FileRef' />
+                      <FieldRef Name='RevisionNo' />
+                      <FieldRef Name='DocID' />
+                    </ViewFields>
+                    <Query>
+                        <Where>
+                        <Eq>
+                          <FieldRef Name='Title'/>
+                          <Value Type='text'>" + flname + @"</Value>
+                        </Eq>
+                      </Where>
+                    </Query>
+                    <OrderBy Override='TRUE'><FieldRef Name= 'ID' Ascending= 'FALSE' /></OrderBy>
+                   </View>";
+
+            await myList.LoadItemsByCamlQueryAsync(new CamlQueryOptions()
+            {
+                ViewXml = viewXml1,
+                DatesInUtc = true
+            }, p => p.FieldValuesAsText, p => p.RoleAssignments.QueryProperties(p => p.PrincipalId, p => p.RoleDefinitions));
+
+
+            var items = myList.Items.AsRequested();
+
+            if (items.Any())
+            {
+                var doc = items.FirstOrDefault();
+
+                return (doc.Title, doc.FieldValuesAsText["RevisionNo"]?.ToString(), doc.Id, doc.FieldValuesAsText["DocID"]?.ToString());
+            }
+
+            return default((string, string, int, string));
         }
 
         /// <summary>
@@ -619,12 +430,13 @@ namespace Demo.Function
 
                         table = new Table();
 
-                        table.SetAttribute(attrib);
 
                         TableProperties tblProp = CreateTableProperties();
 
                         // Append the TableProperties object to the empty table.
                         table.AppendChild<TableProperties>(tblProp);
+
+                        table.SetAttribute(attrib);
 
                         TableRow trHead = new TableRow();
 
