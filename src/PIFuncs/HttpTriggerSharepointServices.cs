@@ -136,375 +136,24 @@ namespace Demo.Function
             }
         }
 
-        private static void ReadDocumentApprovalHistoryParameters(HttpRequestMessage req, out string docid, out string libname, out string flname, out bool download, out string destSpFolder, out string targetSite)
-        {
-            docid = string.Empty;
-            libname = "DmsDocument";
-            flname = "CM-UDR-1-V2.docx";
-            download = false;
-            var debug = false;
-            destSpFolder = "PublishedDocument";
-            var qry = req.RequestUri.ParseQueryString().GetValues("d");
-            var qryd = req.RequestUri.ParseQueryString().GetValues("dwnld");
-            var qrylib = req.RequestUri.ParseQueryString().GetValues("lib");
-            var qDocId = req.RequestUri.ParseQueryString().GetValues("docid");
-            var qDebug = req.RequestUri.ParseQueryString().GetValues("debug");
-            var qPFolder = req.RequestUri.ParseQueryString().GetValues("pfolder");
-
-            if (qry != null)
-                flname = qry.FirstOrDefault();
-
-            if (qryd != null)
-                bool.TryParse(qryd.FirstOrDefault(), out download);
-
-            if (qrylib != null)
-                libname = qrylib.FirstOrDefault();
-
-            if (qDocId != null)
-                docid = qDocId.FirstOrDefault();
-
-            if (qDebug != null)
-                bool.TryParse(qDebug.FirstOrDefault(), out debug);
-
-            if (qPFolder != null)
-                destSpFolder = qPFolder.FirstOrDefault();
-
-            targetSite = "Default";
-            if (debug)
-                targetSite = "TestPortal";
-        }
-
-        private static IActionResult DownloadPublishedDocument(string flname, string tmpDocx)
-        {
-            return new PhysicalFileResult(tmpDocx, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-            {
-                FileDownloadName = flname
-            };
-        }
-
-        private async Task PublishDocument(string flname, IList destinationLibrary, string tmpDocx)
-        {
-            using (Stream s = new FileStream(tmpDocx, FileMode.Open))
-            {
-                try
-                {
-                    // save to destination folder
-                    await destinationLibrary.RootFolder.Files.AddAsync(flname, s, true);
-                }
-                catch (System.Exception ex)
-                {
-                    Logger.LogError(ex, ex.Message + ex.StackTrace);
-
-                }
-            }
-        }
-
-        private static void AppendApprovalHistory(IEnumerable<IListItem> historyItems, WordprocessingDocument doc, Table table)
-        {
-            foreach (var item in historyItems)
-            {
-                var level = Convert.ToString(item["Level"]);
-                var role = Convert.ToString(item["Role"]);
-                var approvalDate = Convert.ToDateTime(item["Created"]).ToString("dd-MMM-yyyy");
-                var approve = Convert.ToString(item["UserName"]);
-
-                TableRow tr = new TableRow();
-                TableRowProperties trProp = new TableRowProperties(new TableRowHeight
-                {
-                    HeightType = new EnumValue<HeightRuleValues>(HeightRuleValues.Auto),
-                });
-
-                CreateCell(level, tr);
-                CreateCell(role, tr);
-                CreateCell(approve, tr, false, 2160);
-                CreateCell(approvalDate, tr);
-
-                table.Append(tr);
-
-            }
-
-            // Append the table to the document.
-            doc.MainDocumentPart.Document.Body.Append(table);
-            doc.Save();
-        }
-
-        private static Table CreateApprovalHistoryTable(OpenXmlAttribute attrib)
-        {
-            Table table = new Table();
-            table.SetAttribute(attrib);
-
-            TableProperties tblProp = CreateTableProperties();
-            table.AppendChild<TableProperties>(tblProp);
-
-            TableRow trHead = new TableRow();
-
-            CreateCell("Level in Route", trHead, true);
-            CreateCell("Role/Designation", trHead, true);
-            CreateCell("Name of the Approver", trHead, true);
-            CreateCell("Date of Approval", trHead, true);
-
-            table.Append(trHead);
-            return table;
-        }
-
-        private static void CleanExistingTable(WordprocessingDocument doc, out Table table, out OpenXmlAttribute attrib)
-        {
-            var tables = doc.MainDocumentPart.Document.Body.Elements<Table>();
-
-            table = doc.MainDocumentPart.Document.Body.Elements<Table>().FirstOrDefault(o => o.LocalName == "tbl");
-            attrib = new OpenXmlAttribute("tbl", "history", "", "table");
-            if (table != null)
-            {
-                doc.MainDocumentPart.Document.Body.RemoveChild(table);
-                doc.Save();
-            }
-        }
-
-        private async Task<IEnumerable<IListItem>> GetApprovalHistory(string docid, PnPContext ctx, string revision)
-        {
-            string viewXml = @"<View>
-                    <Query>
-                      <Where>
-                        <And>
-                        <Eq>
-                          <FieldRef Name='DMSID'/>
-                          <Value Type='text'>" + docid + @"</Value>
-                        </Eq>
-                        <Eq>
-                          <FieldRef Name='RevisionNo'/>
-                          <Value Type='text'>" + revision + @"</Value>
-                        </Eq>
-                       </And>
-                      </Where>
-                    </Query>
-                   </View>";
-
-            var approvalhistory = ctx.Web.Lists.GetByTitle(APPROVAL_HISTORY_LIST_NAME);
-            await approvalhistory.LoadItemsByCamlQueryAsync(new CamlQueryOptions
-            {
-                ViewXml = viewXml,
-                DatesInUtc = false,
-            });
-
-            var historyItems = approvalhistory.Items.AsRequested();
-
-            if (historyItems?.Count() == 0)
-            {
-                Logger.LogError($"Approval History for the document {docid} not found");
-                throw new Exception("Approval history not found");
-            }
-
-            return historyItems;
-        }
-
-        private async Task<(string DocumentName, string RevisionNo, int Id, string DocID)> QueryFileAndMetaData(string libname, string flname, PnPContext ctx)
-        {
-            // Assume the fields where not yet loaded, so loading them with the list
-            var myList = ctx.Web.Lists.GetByTitle(libname, p => p.Title,
-                                                                 p => p.Fields.QueryProperties(p => p.InternalName,
-                                                                                               p => p.FieldTypeKind,
-                                                                                               p => p.TypeAsString,
-                                                                                               p => p.Title));
-
-            // Build a query that only returns the Title field for items where the Title field starts with "Item1"
-            string viewXml1 = @"<View>
-                    <ViewFields>
-                      <FieldRef Name='Title' />
-                      <FieldRef Name='Name' />
-                      <FieldRef Name='FileRef' />
-                      <FieldRef Name='RevisionNo' />
-                      <FieldRef Name='DocID' />
-                    </ViewFields>
-                    <Query>
-                        <Where>
-                        <Eq>
-                          <FieldRef Name='Title'/>
-                          <Value Type='text'>" + flname + @"</Value>
-                        </Eq>
-                      </Where>
-                    </Query>
-                    <OrderBy Override='TRUE'><FieldRef Name= 'ID' Ascending= 'FALSE' /></OrderBy>
-                   </View>";
-
-            await myList.LoadItemsByCamlQueryAsync(new CamlQueryOptions()
-            {
-                ViewXml = viewXml1,
-                DatesInUtc = true
-            }, p => p.FieldValuesAsText, p => p.RoleAssignments.QueryProperties(p => p.PrincipalId, p => p.RoleDefinitions));
-
-
-            var items = myList.Items.AsRequested();
-
-            if (items.Any())
-            {
-                var doc = items.FirstOrDefault();
-
-                return (doc.Title, doc.FieldValuesAsText["RevisionNo"]?.ToString(), doc.Id, doc.FieldValuesAsText["DocID"]?.ToString());
-            }
-
-            return default((string, string, int, string));
-        }
 
         /// <summary>
-        /// Adds approval history of a office 365 docx from a sharepoint library, https://credentinfotec.sharepoint.com/sites/demo/ihub
+        /// Wrapper function for Run2 - new name with same functionality
         /// </summary>
         /// <param name="req"></param>
         /// <returns></returns>
-
-        [FunctionName("HttpTrigger1MyFunc3")]
+        [FunctionName("HttpTriggerDocxApprovalHistory")]
         public async Task<IActionResult> Run3(
             [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequestMessage req)
         {
-            Logger.LogInformation("C# HTTP trigger function processed a request.");
-
-            var result = new { };
-
-            var libname = "Documents";
-            var flname = "Document.docx";
-            var download = false;
-            var qry = req.RequestUri.ParseQueryString().GetValues("d");
-            var qryd = req.RequestUri.ParseQueryString().GetValues("dwnld");
-            var qrylib = req.RequestUri.ParseQueryString().GetValues("lib");
-            if (qry != null)
-                flname = qry.FirstOrDefault();
-
-            if (qryd != null)
-                bool.TryParse(qryd.FirstOrDefault(), out download);
-
-            if (qrylib != null)
-                libname = qrylib.FirstOrDefault();
-
-            using (var ctx = await _pnpContextFactory.CreateAsync("Default"))
-            {
-
-                var approvalhistory = ctx.Web.Lists.GetByTitle(APPROVAL_HISTORY_LIST_NAME);
-                var historyItems = approvalhistory.Items.Where(o => o.Title == flname).ToList();
-
-                var shareDocuments = await ctx.Web.Lists.GetByTitleAsync(libname, l => l.RootFolder);
-                var folderContents = await shareDocuments.RootFolder.GetAsync(o => o.Files);
-
-                var documents = from d in folderContents.Files.AsEnumerable()
-                                select new
-                                {
-                                    d.Name,
-                                    d.TimeLastModified,
-                                    d.UniqueId
-                                };
-
-                IFile docx = null;
-                var tmpLocation = System.IO.Path.GetTempPath();
-
-                foreach (var fl in folderContents.Files.AsEnumerable())
-                {
-                    if (fl.Name == flname)
-                    {
-                        Logger.LogInformation("Docx found");
-                        Logger.LogInformation(fl.Name);
-                        docx = fl;
-                        // return new NotFoundResult();
-                    }
-                }
-
-                if (docx == null)
-                    return new NotFoundResult();
-
-                else
-                {
-                    var bytes = docx.GetContentBytes();
-                    var tmpflName = Guid.NewGuid().ToString();
-                    var tmpDocx = Path.Combine(Path.GetTempPath(), $"{tmpflName}.docx");
-                    File.WriteAllBytes(tmpDocx, bytes);
-                    using (var doc = WordprocessingDocument.Open(tmpDocx, true))
-                    {
-                        var tables = doc.MainDocumentPart.Document.Body.Elements<Table>();
-
-                        var table = doc.MainDocumentPart.Document.Body.Elements<Table>().FirstOrDefault(o => o.LocalName == "tbl");
-
-                        var attrib = new OpenXmlAttribute("tbl", "history", "", "table");
-
-                        if (table != null)
-                        {
-                            doc.MainDocumentPart.Document.Body.RemoveChild(table);
-                            doc.Save();
-                        }
-
-                        table = new Table();
-
-
-                        TableProperties tblProp = CreateTableProperties();
-
-                        // Append the TableProperties object to the empty table.
-                        table.AppendChild<TableProperties>(tblProp);
-
-                        table.SetAttribute(attrib);
-
-                        TableRow trHead = new TableRow();
-
-
-                        CreateCell("Role", trHead);
-                        CreateCell("Name", trHead);
-                        CreateCell("DateTime", trHead);
-                        table.Append(trHead);
-
-                        foreach (var item in approvalhistory.Items)
-                        {
-                            var val1 = Convert.ToString(item["Title"]);
-                            var val2 = Convert.ToString(item["Role"]);
-                            var val3 = Convert.ToString(item["Name"]);
-                            var val4 = Convert.ToString(item["DateTime"]);
-                            TableRow tr = new TableRow();
-
-
-                            CreateCell(val2, tr);
-                            CreateCell(val3, tr);
-                            CreateCell(val4, tr);
-                            table.Append(tr);
-
-                        }
-
-
-                        // Append the table to the document.
-                        doc.MainDocumentPart.Document.Body.Append(table);
-
-                        doc.Save();
-                    }
-
-                    try
-                    {
-                        using (Stream s = new FileStream(tmpDocx, FileMode.Open))
-                        {
-                            try
-                            {
-                                await folderContents.Files.AddAsync(flname, s, true);
-                            }
-                            catch (System.Exception ex)
-                            {
-                                Logger.LogError(ex, ex.Message + ex.StackTrace);
-
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.Error.WriteLine(ex.Message);
-                        //throw;
-                    }
-
-                    if (download)
-                    {
-                        return new PhysicalFileResult(tmpDocx, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-                        {
-                            FileDownloadName = flname
-                        };
-                    }
-                    else
-                        return new JsonResult(new { Success = true });
-                }
-
-
-            }
+            return await Run2(req);
         }
 
+
+        /// <summary>
+        /// CreateTableProperties
+        /// </summary>
+        /// <returns></returns>
         private static TableProperties CreateTableProperties()
         {
 
@@ -581,6 +230,266 @@ namespace Demo.Function
 
             // Append the table cell to the table row.
             tr.Append(tc);
+        }
+
+
+        /// <summary>
+        /// ReadDocumentApprovalHistoryParameters
+        /// </summary>
+        /// <param name="req"></param>
+        /// <param name="docid"></param>
+        /// <param name="libname"></param>
+        /// <param name="flname"></param>
+        /// <param name="download"></param>
+        /// <param name="destSpFolder"></param>
+        /// <param name="targetSite"></param>
+        private static void ReadDocumentApprovalHistoryParameters(HttpRequestMessage req, out string docid, out string libname, out string flname, out bool download, out string destSpFolder, out string targetSite)
+        {
+            docid = string.Empty;
+            libname = "DmsDocument";
+            flname = "CM-UDR-1-V2.docx";
+            download = false;
+            var debug = false;
+            destSpFolder = "PublishedDocument";
+            var qry = req.RequestUri.ParseQueryString().GetValues("d");
+            var qryd = req.RequestUri.ParseQueryString().GetValues("dwnld");
+            var qrylib = req.RequestUri.ParseQueryString().GetValues("lib");
+            var qDocId = req.RequestUri.ParseQueryString().GetValues("docid");
+            var qDebug = req.RequestUri.ParseQueryString().GetValues("debug");
+            var qPFolder = req.RequestUri.ParseQueryString().GetValues("pfolder");
+
+            if (qry != null)
+                flname = qry.FirstOrDefault();
+
+            if (qryd != null)
+                bool.TryParse(qryd.FirstOrDefault(), out download);
+
+            if (qrylib != null)
+                libname = qrylib.FirstOrDefault();
+
+            if (qDocId != null)
+                docid = qDocId.FirstOrDefault();
+
+            if (qDebug != null)
+                bool.TryParse(qDebug.FirstOrDefault(), out debug);
+
+            if (qPFolder != null)
+                destSpFolder = qPFolder.FirstOrDefault();
+
+            targetSite = "Default";
+            if (debug)
+                targetSite = "TestPortal";
+        }
+
+        private static IActionResult DownloadPublishedDocument(string flname, string tmpDocx)
+        {
+            return new PhysicalFileResult(tmpDocx, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+            {
+                FileDownloadName = flname
+            };
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="flname"></param>
+        /// <param name="destinationLibrary"></param>
+        /// <param name="tmpDocx"></param>
+        /// <returns></returns>
+        private async Task PublishDocument(string flname, IList destinationLibrary, string tmpDocx)
+        {
+            using (Stream s = new FileStream(tmpDocx, FileMode.Open))
+            {
+                try
+                {
+                    // save to destination folder
+                    await destinationLibrary.RootFolder.Files.AddAsync(flname, s, true);
+                }
+                catch (System.Exception ex)
+                {
+                    Logger.LogError(ex, ex.Message + ex.StackTrace);
+
+                }
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="historyItems"></param>
+        /// <param name="doc"></param>
+        /// <param name="table"></param>
+        private static void AppendApprovalHistory(IEnumerable<IListItem> historyItems, WordprocessingDocument doc, Table table)
+        {
+            foreach (var item in historyItems)
+            {
+                var level = Convert.ToString(item["Level"]);
+                var role = Convert.ToString(item["Role"]);
+                var approvalDate = Convert.ToDateTime(item["Created"]).ToString("dd-MMM-yyyy");
+                var approve = Convert.ToString(item["UserName"]);
+
+                TableRow tr = new TableRow();
+                TableRowProperties trProp = new TableRowProperties(new TableRowHeight
+                {
+                    HeightType = new EnumValue<HeightRuleValues>(HeightRuleValues.Auto),
+                });
+
+                CreateCell(level, tr);
+                CreateCell(role, tr);
+                CreateCell(approve, tr, false, 2160);
+                CreateCell(approvalDate, tr);
+
+                table.Append(tr);
+
+            }
+
+            // Append the table to the document.
+            doc.MainDocumentPart.Document.Body.Append(table);
+            doc.Save();
+        }
+
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="attrib"></param>
+        /// <returns></returns>
+        private static Table CreateApprovalHistoryTable(OpenXmlAttribute attrib)
+        {
+            Table table = new Table();
+            table.SetAttribute(attrib);
+
+            TableProperties tblProp = CreateTableProperties();
+            table.AppendChild<TableProperties>(tblProp);
+
+            TableRow trHead = new TableRow();
+
+            CreateCell("Level in Route", trHead, true);
+            CreateCell("Role/Designation", trHead, true);
+            CreateCell("Name of the Approver", trHead, true);
+            CreateCell("Date of Approval", trHead, true);
+
+            table.Append(trHead);
+            return table;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="doc"></param>
+        /// <param name="table"></param>
+        /// <param name="attrib"></param>
+        private static void CleanExistingTable(WordprocessingDocument doc, out Table table, out OpenXmlAttribute attrib)
+        {
+            var tables = doc.MainDocumentPart.Document.Body.Elements<Table>();
+
+            table = doc.MainDocumentPart.Document.Body.Elements<Table>().FirstOrDefault(o => o.LocalName == "tbl");
+            attrib = new OpenXmlAttribute("tbl", "history", "", "table");
+            if (table != null)
+            {
+                doc.MainDocumentPart.Document.Body.RemoveChild(table);
+                doc.Save();
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="docid"></param>
+        /// <param name="ctx"></param>
+        /// <param name="revision"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        private async Task<IEnumerable<IListItem>> GetApprovalHistory(string docid, PnPContext ctx, string revision)
+        {
+            string viewXml = @"<View>
+                    <Query>
+                      <Where>
+                        <And>
+                        <Eq>
+                          <FieldRef Name='DMSID'/>
+                          <Value Type='text'>" + docid + @"</Value>
+                        </Eq>
+                        <Eq>
+                          <FieldRef Name='RevisionNo'/>
+                          <Value Type='text'>" + revision + @"</Value>
+                        </Eq>
+                       </And>
+                      </Where>
+                    </Query>
+                   </View>";
+
+            var approvalhistory = ctx.Web.Lists.GetByTitle(APPROVAL_HISTORY_LIST_NAME);
+            await approvalhistory.LoadItemsByCamlQueryAsync(new CamlQueryOptions
+            {
+                ViewXml = viewXml,
+                DatesInUtc = false,
+            });
+
+            var historyItems = approvalhistory.Items.AsRequested();
+
+            if (historyItems?.Count() == 0)
+            {
+                Logger.LogError($"Approval History for the document {docid} not found");
+                throw new Exception("Approval history not found");
+            }
+
+            return historyItems;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="libname"></param>
+        /// <param name="flname"></param>
+        /// <param name="ctx"></param>
+        /// <returns></returns>
+        private async Task<(string DocumentName, string RevisionNo, int Id, string DocID)> QueryFileAndMetaData(string libname, string flname, PnPContext ctx)
+        {
+            // Assume the fields where not yet loaded, so loading them with the list
+            var myList = ctx.Web.Lists.GetByTitle(libname, p => p.Title,
+                                                                 p => p.Fields.QueryProperties(p => p.InternalName,
+                                                                                               p => p.FieldTypeKind,
+                                                                                               p => p.TypeAsString,
+                                                                                               p => p.Title));
+
+            // Build a query that only returns the Title field for items where the Title field starts with "Item1"
+            string viewXml1 = @"<View>
+                    <ViewFields>
+                      <FieldRef Name='Title' />
+                      <FieldRef Name='Name' />
+                      <FieldRef Name='FileRef' />
+                      <FieldRef Name='RevisionNo' />
+                      <FieldRef Name='DocID' />
+                    </ViewFields>
+                    <Query>
+                        <Where>
+                        <Eq>
+                          <FieldRef Name='Title'/>
+                          <Value Type='text'>" + flname + @"</Value>
+                        </Eq>
+                      </Where>
+                    </Query>
+                    <OrderBy Override='TRUE'><FieldRef Name= 'ID' Ascending= 'FALSE' /></OrderBy>
+                   </View>";
+
+            await myList.LoadItemsByCamlQueryAsync(new CamlQueryOptions()
+            {
+                ViewXml = viewXml1,
+                DatesInUtc = true
+            }, p => p.FieldValuesAsText, p => p.RoleAssignments.QueryProperties(p => p.PrincipalId, p => p.RoleDefinitions));
+
+
+            var items = myList.Items.AsRequested();
+
+            if (items.Any())
+            {
+                var doc = items.FirstOrDefault();
+
+                return (doc.Title, doc.FieldValuesAsText["RevisionNo"]?.ToString(), doc.Id, doc.FieldValuesAsText["DocID"]?.ToString());
+            }
+
+            return default((string, string, int, string));
         }
     }
 
