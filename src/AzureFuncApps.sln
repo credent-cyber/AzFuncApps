@@ -11,6 +11,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DemoFunc", "Demo\DemoFunc.c
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PIFunc", "PIFuncs\PIFunc.csproj", "{3236BF41-6BBA-45DE-B893-78D2A8F11121}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenXmlDemoConsole", "OpenXmlDemoConsole\OpenXmlDemoConsole.csproj", "{E3C07723-654E-42F8-BADB-C869CAD345CB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -33,6 +35,10 @@ Global
 		{3236BF41-6BBA-45DE-B893-78D2A8F11121}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3236BF41-6BBA-45DE-B893-78D2A8F11121}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3236BF41-6BBA-45DE-B893-78D2A8F11121}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E3C07723-654E-42F8-BADB-C869CAD345CB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E3C07723-654E-42F8-BADB-C869CAD345CB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E3C07723-654E-42F8-BADB-C869CAD345CB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E3C07723-654E-42F8-BADB-C869CAD345CB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

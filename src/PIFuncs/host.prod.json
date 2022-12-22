@@ -1,0 +1,46 @@
+{
+  "version": "2.0",
+  "logging": {
+    "applicationInsights": {
+      "samplingSettings": {
+        "isEnabled": true,
+        "excludedTypes": "Request"
+      }
+    }
+  },
+  "SiteUrl": "https://piind.sharepoint.com/sites/dms-qa",
+  "TestPortal": "https://piind.sharepoint.com/sites/dms-qa",
+  "TenantId": "624e7232-a3b5-4b26-911e-c1886eb5be42",
+  "ClientId": "c237186c-0206-45d3-87b4-b7d660c61a1c",
+  "CertificateThumbPrint": "D473C3B2A13A84ADA189FB821020D14B1E312BD2",
+  "WEBSITE_LOAD_CERTIFICATES": "D473C3B2A13A84ADA189FB821020D14B1E312BD2",
+  "CertPath": "DMSAPPROVALHISTORY.APP.pfx",
+  "Pwd": "**********",
+  "ApprovalHistoryExcludedRole": [
+    "Publisher"
+  ],
+  "Serilog": {
+    "MinimumLevel": "Debug",
+    "Enrich": [
+      "FromLogContext",
+      "WithMachineName",
+      "WithThreadId"
+    ],
+    "Properties": {
+      "Application": "DMS.ApprovalHistory"
+    },
+    "WriteTo": [
+      {
+        "Name": "File",
+        "Args": {
+          "path": "./logs/funcs.log",
+          "rollingInterval": "Day",
+          "rollOnFileSizeLimit": true,
+          "fileSizeLimitBytes": 104857600,
+          "restrictedToMinimumLevel": "Debug",
+          "outputTemplate": "{Timestamp:yyyyMMdd HH:mm:ss.fff} [{Level:u3}] [{SourceContext}] {Message}{NewLine}{Exception}"
+        }
+      }
+    ]
+  }
+}

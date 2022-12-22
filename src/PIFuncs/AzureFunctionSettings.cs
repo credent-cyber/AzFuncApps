@@ -1,8 +1,12 @@
-﻿using System.Security.Cryptography.X509Certificates;
+﻿using DocumentFormat.OpenXml.Office2010.ExcelAc;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Graph;
+using System.Collections.Generic;
+using System.Security.Cryptography.X509Certificates;
 
 namespace Demo
 {
-    class AzureFunctionSettings
+    public class AzureFunctionSettings
     {
         public string SiteUrl { get; set; }
         public string TestPortal { get; set; }
@@ -13,6 +17,7 @@ namespace Demo
         public string CertificateThumbPrint { get; set; }
         public string CertPath { get; set; }
         public string Pwd { get; set; }
+        public List<string> ApprovalHistoryExcludedRole { get; set; } = new List<string>();
 
     }
 }

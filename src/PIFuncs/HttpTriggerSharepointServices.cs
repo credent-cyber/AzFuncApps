@@ -27,13 +27,16 @@ namespace Demo.Function
         private const int BORDER_WIDTH = 1;
         readonly IPnPContextFactory _pnpContextFactory;
         private static ConcurrentDictionary<string, string> _runningTasks = new ConcurrentDictionary<string, string>();
-        public HttpTriggerSharepointServices(IPnPContextFactory pnpContextFactory, ILogger<HttpTriggerSharepointServices> logger)
+        public HttpTriggerSharepointServices(IPnPContextFactory pnpContextFactory,
+            ILogger<HttpTriggerSharepointServices> logger, AzureFunctionSettings functionSettings)
         {
             _pnpContextFactory = pnpContextFactory;
             Logger = logger;
+            FunctionSettings = functionSettings;
         }
 
         public ILogger<HttpTriggerSharepointServices> Logger { get; }
+        public AzureFunctionSettings FunctionSettings { get; }
 
         /// <summary>
         /// Ping request for alive status
@@ -319,14 +322,21 @@ namespace Demo.Function
         /// <param name="historyItems"></param>
         /// <param name="doc"></param>
         /// <param name="table"></param>
-        private static void AppendApprovalHistory(IEnumerable<IListItem> historyItems, WordprocessingDocument doc, Table table)
+        private void AppendApprovalHistory(IEnumerable<IListItem> historyItems, WordprocessingDocument doc, Table table)
         {
             foreach (var item in historyItems)
             {
+
                 var level = Convert.ToString(item["Level"]);
                 var role = Convert.ToString(item["Role"]);
                 var approvalDate = Convert.ToDateTime(item["Created"]).ToString("dd-MMM-yyyy");
                 var approve = Convert.ToString(item["UserName"]);
+
+                if (FunctionSettings.ApprovalHistoryExcludedRole.Any(o => o.Equals(role, StringComparison.InvariantCultureIgnoreCase)))
+                {
+                    Logger.LogWarning($"Role: [{role}] is filtered from the configuration settings");
+                    continue;
+                }
 
                 TableRow tr = new TableRow();
                 TableRowProperties trProp = new TableRowProperties(new TableRowHeight
@@ -360,7 +370,7 @@ namespace Demo.Function
             table.SetAttribute(attrib);
 
             TableProperties tblProp = CreateTableProperties();
-            table.AppendChild<TableProperties>(tblProp);
+            table.AppendChild(tblProp);
 
             TableRow trHead = new TableRow();
 
@@ -416,6 +426,9 @@ namespace Demo.Function
                         </Eq>
                        </And>
                       </Where>
+                     <OrderBy>
+                          <FieldRef Name='Created' Ascending='False' />
+                     </OrderBy>
                     </Query>
                    </View>";
 

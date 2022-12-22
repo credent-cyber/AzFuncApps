@@ -10,8 +10,9 @@ using Microsoft.Extensions.Configuration;
 using System.Security.Cryptography.X509Certificates;
 using System.IO;
 using Serilog;
+using Microsoft.Azure.WebJobs.Hosting;
 
-[assembly: FunctionsStartup(typeof(Demo.Startup))]
+[assembly: WebJobsStartup(typeof(Demo.Startup))]
 
 namespace Demo
 {
@@ -53,12 +54,10 @@ namespace Demo
                 builder.AddSerilog();
             });
 
-
-            //Console.WriteLine($"CertPath: {certPath}");
-            //Console.WriteLine($"CertPwd: {certPwd}");
-
             var settings = new AzureFunctionSettings();
             config.Bind(settings);
+
+            builder.Services.AddSingleton(settings);
 
             var cert = new X509Certificate2(certPath, certPwd);
             var log = Log.Logger;
