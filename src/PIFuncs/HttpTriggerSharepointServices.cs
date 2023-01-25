@@ -14,12 +14,13 @@ using DocumentFormat.OpenXml.Packaging;
 using System;
 using PnP.Core.QueryModel;
 using System.Collections.Concurrent;
-
+using System.Collections.Generic;
 
 namespace Demo.Function
 {
-    using System.Collections.Generic;
+
     using DocumentFormat.OpenXml.Wordprocessing;
+    using XlsxHelper;
 
     public class HttpTriggerSharepointServices
     {
@@ -52,7 +53,7 @@ namespace Demo.Function
         }
 
         /// <summary>
-        /// Adds approval history of a office 365 docx from a sharepoint library, run against requested site : TestPortal, configured SiteUrl
+        /// Adds approval history of a office 365 docx, xlsx from a sharepoint library, run against requested site : TestPortal, configured SiteUrl
         /// </summary>
         /// <param name="req"></param>
         /// <returns></returns>
@@ -95,21 +96,40 @@ namespace Demo.Function
 
                     else
                     {
+                        var isXlsx = Path.GetExtension(flname) == ".xlsx" ? true : false;
+                        var isDocx = Path.GetExtension(flname) == ".docx" ? true : false;
+
                         IEnumerable<IListItem> historyItems = await GetApprovalHistory(docid, ctx, fileInfo.RevisionNo);
 
                         var bytes = docx.GetContentBytes();
                         var tmpflName = Guid.NewGuid().ToString();
-                        var tmpDocx = Path.Combine(Path.GetTempPath(), $"{tmpflName}.docx");
+                        var ext = isXlsx ? ".xlsx" : ".docx";
+                        var tmpDocx = Path.Combine(Path.GetTempPath(), $"{tmpflName}.{ext}");
+
                         File.WriteAllBytes(tmpDocx, bytes);
-                        using (var doc = WordprocessingDocument.Open(tmpDocx, true))
+
+                      
+
+                        if (isDocx)
                         {
-                            Table table;
-                            OpenXmlAttribute attrib;
+                            using (var doc = WordprocessingDocument.Open(tmpDocx, true))
+                            {
+                                Table table;
+                                OpenXmlAttribute attrib;
 
-                            CleanExistingTable(doc, out table, out attrib);
+                                CleanExistingTable(doc, out table, out attrib);
 
-                            table = CreateApprovalHistoryTable(attrib);
-                            AppendApprovalHistory(historyItems, doc, table);
+                                table = CreateApprovalHistoryTable(attrib);
+                                AppendApprovalHistory(historyItems, doc, table);
+                            }
+
+                        }
+
+                        if (isXlsx)
+                        {
+                            var auditHistory = new AuditHistory();
+                            var data  = GetHistoryDataArray(historyItems);
+                            auditHistory.Append(tmpDocx, null, data);
                         }
 
                         try
@@ -147,6 +167,18 @@ namespace Demo.Function
         /// <returns></returns>
         [FunctionName("HttpTriggerDocxApprovalHistory")]
         public async Task<IActionResult> Run3(
+            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequestMessage req)
+        {
+            return await Run2(req);
+        }
+
+        /// <summary>
+        /// Wrapper function for Run2 - new name with same functionality
+        /// </summary>
+        /// <param name="req"></param>
+        /// <returns></returns>
+        [FunctionName("HttpTriggerXlsxApprovalHistory")]
+        public async Task<IActionResult> Run4(
             [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequestMessage req)
         {
             return await Run2(req);
@@ -299,7 +331,7 @@ namespace Demo.Function
         /// <param name="destinationLibrary"></param>
         /// <param name="tmpDocx"></param>
         /// <returns></returns>
-        private async Task PublishDocument(string flname, IList destinationLibrary, string tmpDocx)
+        private async Task PublishDocument(string flname, PnP.Core.Model.SharePoint.IList destinationLibrary, string tmpDocx)
         {
             using (Stream s = new FileStream(tmpDocx, FileMode.Open))
             {
@@ -316,6 +348,34 @@ namespace Demo.Function
             }
         }
 
+        private List<string[]> GetHistoryDataArray(IEnumerable<IListItem> historyItems)
+        {
+            List<string[]> historyDataArray = new List<string[]>();
+
+            foreach(var item in historyItems)
+            {
+                var itemArray = new List<string>();
+
+                var level = Convert.ToString(item["Level"]);
+                var role = Convert.ToString(item["Role"]);
+                var approvalDate = Convert.ToDateTime(item["Created"]).ToString("dd-MMM-yyyy");
+                var approve = Convert.ToString(item["UserName"]);
+                var designation = Convert.ToString(item["DMSRole"]);
+                
+                itemArray.Add(level);
+                itemArray.Add(role);
+                itemArray.Add(approvalDate);
+                itemArray.Add(approve);
+                itemArray.Add(designation);
+
+                historyDataArray.Add(itemArray.ToArray());
+
+            }
+
+            return historyDataArray;
+
+        }
+
         /// <summary>
         /// 
         /// </summary>
@@ -326,11 +386,11 @@ namespace Demo.Function
         {
             foreach (var item in historyItems)
             {
-
                 var level = Convert.ToString(item["Level"]);
                 var role = Convert.ToString(item["Role"]);
                 var approvalDate = Convert.ToDateTime(item["Created"]).ToString("dd-MMM-yyyy");
                 var approve = Convert.ToString(item["UserName"]);
+                var designation = Convert.ToString(item["DMSRole"]);
 
                 if (FunctionSettings.ApprovalHistoryExcludedRole.Any(o => o.Equals(role, StringComparison.InvariantCultureIgnoreCase)))
                 {
@@ -345,6 +405,9 @@ namespace Demo.Function
                 });
 
                 CreateCell(level, tr);
+
+                role = $"{role}/{designation}";
+
                 CreateCell(role, tr);
                 CreateCell(approve, tr, false, 2160);
                 CreateCell(approvalDate, tr);

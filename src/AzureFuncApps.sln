@@ -11,7 +11,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DemoFunc", "Demo\DemoFunc.c
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PIFunc", "PIFuncs\PIFunc.csproj", "{3236BF41-6BBA-45DE-B893-78D2A8F11121}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenXmlDemoConsole", "OpenXmlDemoConsole\OpenXmlDemoConsole.csproj", "{E3C07723-654E-42F8-BADB-C869CAD345CB}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OpenXmlDemoConsole", "OpenXmlDemoConsole\OpenXmlDemoConsole.csproj", "{E3C07723-654E-42F8-BADB-C869CAD345CB}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Lib", "Lib", "{5A5F7C7E-6BBF-4EEA-9AD9-DAEE9A0724BF}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DemoConsole", "DemoConsole", "{70093AE4-2644-43C7-B4F3-B34B052FB153}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -42,6 +46,11 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{9502869D-E216-4AEF-9713-E0654BF695AD} = {70093AE4-2644-43C7-B4F3-B34B052FB153}
+		{37E95824-2E81-4515-BC8B-090CACBD2F71} = {70093AE4-2644-43C7-B4F3-B34B052FB153}
+		{E3C07723-654E-42F8-BADB-C869CAD345CB} = {70093AE4-2644-43C7-B4F3-B34B052FB153}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {F57181D0-A11C-42AF-B7FC-567C2FD13C1F}
