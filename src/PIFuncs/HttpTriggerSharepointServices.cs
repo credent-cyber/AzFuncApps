@@ -355,22 +355,31 @@ namespace Demo.Function
             foreach(var item in historyItems)
             {
                 var itemArray = new List<string>();
-
                 var level = Convert.ToString(item["Level"]);
                 var role = Convert.ToString(item["Role"]);
                 var approvalDate = Convert.ToDateTime(item["Created"]).ToString("dd-MMM-yyyy");
-                var approve = Convert.ToString(item["UserName"]);
+                var approver = Convert.ToString(item["UserName"]);
                 var designation = Convert.ToString(item["DMSRole"]);
+
+                var isFiltered = FunctionSettings
+                    .ApprovalHistoryExcludedRole.Any(o => o.Equals(role, StringComparison.InvariantCultureIgnoreCase));
+
+                if (isFiltered)
+                    continue;
+               
+                role = $"{role}/{designation}";
                 
                 itemArray.Add(level);
                 itemArray.Add(role);
+                itemArray.Add(approver);
                 itemArray.Add(approvalDate);
-                itemArray.Add(approve);
-                itemArray.Add(designation);
 
                 historyDataArray.Add(itemArray.ToArray());
 
             }
+
+            historyDataArray = historyDataArray.OrderBy(arr => arr[0])
+                .ToList();
 
             return historyDataArray;
 
