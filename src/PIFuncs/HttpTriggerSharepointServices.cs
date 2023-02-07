@@ -20,6 +20,7 @@ namespace Demo.Function
 {
 
     using DocumentFormat.OpenXml.Wordprocessing;
+    using PIFunc.DocxHelper;
     using XlsxHelper;
 
     public class HttpTriggerSharepointServices
@@ -115,12 +116,18 @@ namespace Demo.Function
                             using (var doc = WordprocessingDocument.Open(tmpDocx, true))
                             {
                                 Table table;
+
                                 OpenXmlAttribute attrib;
 
                                 CleanExistingTable(doc, out table, out attrib);
 
                                 table = CreateApprovalHistoryTable(attrib);
                                 AppendApprovalHistory(historyItems, doc, table);
+
+                                var versionDate = GetVersionDate(historyItems);
+                                var table2 = CreateMetaDataTable(attrib, docid, string.Empty, fileInfo.RevisionNo.ToUpper(), versionDate, string.Empty, string.Empty);
+
+                                DocumentHeader.AddMetadata(doc, table2);
                             }
 
                         }
@@ -239,10 +246,13 @@ namespace Demo.Function
             );
         }
 
-        private static void CreateCell(string val1, TableRow tr, bool boldText = false, uint width = 1440)
+        private static void CreateCell(string val1, TableRow tr, bool boldText = false, uint width = 1440, TableCellProperties tableCellProperties = null)
         {
             TableCell tc = new TableCell();
 
+            if(tableCellProperties != null)
+                tc.Append(tableCellProperties);
+            
             // Specify the width property of the table cell.
             if (width == 0)
                 tc.Append(new TableCellProperties(
@@ -385,6 +395,14 @@ namespace Demo.Function
 
         }
 
+        private string GetVersionDate(IEnumerable<IListItem> historyItems)
+        {
+            var item = historyItems.FirstOrDefault();
+
+            return Convert.ToDateTime(item["Created"]).ToString("dd-MMM-yyyy");
+
+        }
+
         /// <summary>
         /// 
         /// </summary>
@@ -427,6 +445,7 @@ namespace Demo.Function
 
             // Append the table to the document.
             doc.MainDocumentPart.Document.Body.Append(table);
+            
             doc.Save();
         }
 
@@ -452,6 +471,104 @@ namespace Demo.Function
             CreateCell("Date of Approval", trHead, true);
 
             table.Append(trHead);
+            return table;
+        }
+
+        private static Table CreateMetaDataTable(OpenXmlAttribute attrib, string docId, 
+            string procedureReference, string version, string revisionDate, string content, string copyNumber)
+        {
+            Table table = new Table();
+            table.SetAttribute(attrib);
+
+            TableProperties tblProp = CreateTableProperties();
+            table.AppendChild(tblProp);
+
+            TableRow trHead = new TableRow();
+
+            CreateCell("DOC ID NO:", trHead, true);
+            CreateCell(docId, trHead, false);
+            CreateCell("PROCEDURE REF NO:", trHead, true);
+            CreateCell(procedureReference, trHead, false);
+
+            table.Append(trHead);
+
+
+            TableRow row2 = new TableRow();
+
+            CreateCell("REVISION NO:", row2, true);
+            CreateCell(version, row2, false);
+            CreateCell("REVISION DATE:", row2, true);
+            CreateCell(revisionDate, row2, false);
+
+            table.Append(row2);
+
+            TableRow row3 = new TableRow();
+
+            TableCellProperties cellOneProperties = new TableCellProperties();
+            cellOneProperties.Append(new HorizontalMerge()
+            {
+                Val = MergedCellValues.Restart
+            });
+
+            TableCellProperties cellTwoProperties = new TableCellProperties();
+            cellTwoProperties.Append(new HorizontalMerge()
+            {
+                Val = MergedCellValues.Continue
+            });
+
+            TableCellProperties cellThreeProperties = new TableCellProperties();
+            cellThreeProperties.Append(new HorizontalMerge()
+            {
+                Val = MergedCellValues.Continue
+            });
+
+            TableCellProperties cellFourProperties = new TableCellProperties();
+            cellFourProperties.Append(new HorizontalMerge()
+            {
+                Val = MergedCellValues.Continue
+            });
+
+            TableCellProperties cellFiveProperties = new TableCellProperties();
+            cellFiveProperties.Append(new HorizontalMerge()
+            {
+                Val = MergedCellValues.Restart
+            });
+
+            TableCellProperties cellSixProperties = new TableCellProperties();
+            cellSixProperties.Append(new HorizontalMerge()
+            {
+                Val = MergedCellValues.Continue
+            });
+
+            TableCellProperties cellSevenProperties = new TableCellProperties();
+            cellSevenProperties.Append(new HorizontalMerge()
+            {
+                Val = MergedCellValues.Restart
+            });
+
+            TableCellProperties cellEightProperties = new TableCellProperties();
+            cellEightProperties.Append(new HorizontalMerge()
+            {
+                Val = MergedCellValues.Continue
+            });
+
+
+            CreateCell(content, row3, true, tableCellProperties: cellOneProperties);
+            CreateCell("", row3, false, tableCellProperties: cellTwoProperties);
+            CreateCell("", row3, false, tableCellProperties: cellThreeProperties);
+            CreateCell("", row3, false, tableCellProperties: cellFourProperties);
+
+            table.Append(row3);
+
+            TableRow row4 = new TableRow();
+
+            CreateCell("Controlled if stamped in red", row4, true, tableCellProperties: cellFiveProperties);
+            CreateCell("", row4, true, tableCellProperties: cellSixProperties);
+
+            CreateCell("COPY NO.", row4, true, tableCellProperties: cellSevenProperties);
+            CreateCell(copyNumber, row4, true, tableCellProperties: cellEightProperties);
+
+            table.Append(row4);
             return table;
         }
 
