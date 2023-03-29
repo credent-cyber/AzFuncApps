@@ -18,6 +18,7 @@ namespace Demo
         public string CertPath { get; set; }
         public string Pwd { get; set; }
         public List<string> ApprovalHistoryExcludedRole { get; set; } = new List<string>();
+        public List<string> ApprovalHistoryExcludedAction { get; set; } = new List<string>();
 
     }
 }

@@ -109,8 +109,6 @@ namespace Demo.Function
 
                         File.WriteAllBytes(tmpDocx, bytes);
 
-                      
-
                         if (isDocx)
                         {
                             using (var doc = WordprocessingDocument.Open(tmpDocx, true))
@@ -125,7 +123,7 @@ namespace Demo.Function
                                 AppendApprovalHistory(historyItems, doc, table);
 
                                 var versionDate = GetVersionDate(historyItems);
-                                var table2 = CreateMetaDataTable(attrib, docid, string.Empty, fileInfo.RevisionNo.ToUpper(), versionDate, string.Empty, string.Empty);
+                                var table2 = CreateMetaDataTable(attrib, docid, fileInfo.ProcedureRef, fileInfo.RevisionNo.ToUpper(), versionDate, fileInfo.FileName, string.Empty);
 
                                 DocumentHeader.AddMetadata(doc, table2);
                             }
@@ -367,12 +365,16 @@ namespace Demo.Function
                 var itemArray = new List<string>();
                 var level = Convert.ToString(item["Level"]);
                 var role = Convert.ToString(item["Role"]);
+                var action = Convert.ToString(item["Action"]);
                 var approvalDate = Convert.ToDateTime(item["Created"]).ToString("dd-MMM-yyyy");
                 var approver = Convert.ToString(item["UserName"]);
                 var designation = Convert.ToString(item["DMSRole"]);
 
                 var isFiltered = FunctionSettings
                     .ApprovalHistoryExcludedRole.Any(o => o.Equals(role, StringComparison.InvariantCultureIgnoreCase));
+
+                isFiltered = isFiltered || FunctionSettings
+                    .ApprovalHistoryExcludedAction.Any(o => o.Equals(action, StringComparison.InvariantCultureIgnoreCase));
 
                 if (isFiltered)
                     continue;
@@ -415,6 +417,7 @@ namespace Demo.Function
             {
                 var level = Convert.ToString(item["Level"]);
                 var role = Convert.ToString(item["Role"]);
+                var action = Convert.ToString(item["Action"]);
                 var approvalDate = Convert.ToDateTime(item["Created"]).ToString("dd-MMM-yyyy");
                 var approve = Convert.ToString(item["UserName"]);
                 var designation = Convert.ToString(item["DMSRole"]);
@@ -422,6 +425,12 @@ namespace Demo.Function
                 if (FunctionSettings.ApprovalHistoryExcludedRole.Any(o => o.Equals(role, StringComparison.InvariantCultureIgnoreCase)))
                 {
                     Logger.LogWarning($"Role: [{role}] is filtered from the configuration settings");
+                    continue;
+                }
+
+                if (FunctionSettings.ApprovalHistoryExcludedAction.Any(o => o.Equals(action, StringComparison.InvariantCultureIgnoreCase)))
+                {
+                    Logger.LogWarning($"Action: [{action}] is filtered from the configuration settings");
                     continue;
                 }
 
@@ -646,7 +655,7 @@ namespace Demo.Function
         /// <param name="flname"></param>
         /// <param name="ctx"></param>
         /// <returns></returns>
-        private async Task<(string DocumentName, string RevisionNo, int Id, string DocID)> QueryFileAndMetaData(string libname, string flname, PnPContext ctx)
+        private async Task<(string DocumentName, string RevisionNo, int Id, string DocID, string FileName, string ProcedureRef)> QueryFileAndMetaData(string libname, string flname, PnPContext ctx)
         {
             // Assume the fields where not yet loaded, so loading them with the list
             var myList = ctx.Web.Lists.GetByTitle(libname, p => p.Title,
@@ -663,6 +672,8 @@ namespace Demo.Function
                       <FieldRef Name='FileRef' />
                       <FieldRef Name='RevisionNo' />
                       <FieldRef Name='DocID' />
+                      <FieldRef Name='DocumentName' />
+                      <FieldRef Name='ProcedureRef' />
                     </ViewFields>
                     <Query>
                         <Where>
@@ -688,10 +699,10 @@ namespace Demo.Function
             {
                 var doc = items.FirstOrDefault();
 
-                return (doc.Title, doc.FieldValuesAsText["RevisionNo"]?.ToString(), doc.Id, doc.FieldValuesAsText["DocID"]?.ToString());
+                return (doc.Title, doc.FieldValuesAsText["RevisionNo"]?.ToString(), doc.Id, doc.FieldValuesAsText["DocID"]?.ToString(), doc.FieldValuesAsText["DocumentName"]?.ToString(), doc.FieldValuesAsText["ProcedureRef"]?.ToString());
             }
 
-            return default((string, string, int, string));
+            return default((string, string, int, string, string, string));
         }
     }
 
