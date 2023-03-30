@@ -19,6 +19,9 @@
   "ApprovalHistoryExcludedRole": [
     "Publisher"
   ],
+  "ApprovalHistoryExcludedAction": [
+    "In Correction"
+  ],
   "Serilog": {
     "MinimumLevel": "Debug",
     "Enrich": [
