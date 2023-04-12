@@ -8,13 +8,21 @@
       }
     }
   },
-  "SiteUrl": "https://piind.sharepoint.com/sites/dms-qa",
-  "TestPortal": "https://piind.sharepoint.com/sites/dms-qa",
-  "TenantId": "624e7232-a3b5-4b26-911e-c1886eb5be42",
-  "ClientId": "c237186c-0206-45d3-87b4-b7d660c61a1c",
-  "CertificateThumbPrint": "D473C3B2A13A84ADA189FB821020D14B1E312BD2",
-  "WEBSITE_LOAD_CERTIFICATES": "D473C3B2A13A84ADA189FB821020D14B1E312BD2",
-  "CertPath": "DMSAPPROVALHISTORY.APP.pfx",
+  "extensions": {
+    "http": {
+      "routePrefix": "api",
+      "maxOutstandingRequests": 200,
+      "maxConcurrentRequests": 10,
+      "dynamicThrottlesEnabled": true
+    }
+  },
+  "SiteUrl": "https://credentinfotec.sharepoint.com/sites/testPortal",
+  "TestPortal": "https://credentinfotec.sharepoint.com/sites/testPortal",
+  "TenantId": "cf92019c-152d-42f6-bbcc-0cf96e6b0108",
+  "ClientId": "d9116b0f-89be-4922-98c1-570172d7b591",
+  "CertificateThumbPrint": "2ACCDE1A0766D5E7FF20632FD748C97A9D1E9E99",
+  "WEBSITE_LOAD_CERTIFICATES": "2ACCDE1A0766D5E7FF20632FD748C97A9D1E9E99",
+  "CertPath": "PnP.Core.SDK.AzureFunctionV5.pfx",
   "Pwd": "**********",
   "ApprovalHistoryExcludedRole": [
     "Publisher"
@@ -24,15 +32,12 @@
   ],
   "Serilog": {
     "MinimumLevel": "Debug",
-    "Enrich": [
-      "FromLogContext",
-      "WithMachineName",
-      "WithThreadId"
-    ],
+    "Enrich": [ "FromLogContext", "WithMachineName", "WithThreadId" ],
     "Properties": {
-      "Application": "DMS.ApprovalHistory"
+      "Application": "PhishingSimulator.Services.Notification"
     },
     "WriteTo": [
+
       {
         "Name": "File",
         "Args": {
@@ -44,6 +49,7 @@
           "outputTemplate": "{Timestamp:yyyyMMdd HH:mm:ss.fff} [{Level:u3}] [{SourceContext}] {Message}{NewLine}{Exception}"
         }
       }
+
     ]
   }
 }

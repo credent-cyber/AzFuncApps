@@ -122,8 +122,7 @@ namespace Demo.Function
                                 table = CreateApprovalHistoryTable(attrib);
                                 AppendApprovalHistory(historyItems, doc, table);
 
-                                var versionDate = GetVersionDate(historyItems);
-                                var table2 = CreateMetaDataTable(attrib, docid, fileInfo.ProcedureRef, fileInfo.RevisionNo.ToUpper(), versionDate, fileInfo.FileName, string.Empty);
+                                var table2 = CreateMetaDataTable(attrib, docid, fileInfo.ProcedureRef, fileInfo.RevisionNo.ToUpper(), fileInfo.RevisionDate, fileInfo.FileName, string.Empty);
 
                                 DocumentHeader.AddMetadata(doc, table2);
                             }
@@ -655,7 +654,7 @@ namespace Demo.Function
         /// <param name="flname"></param>
         /// <param name="ctx"></param>
         /// <returns></returns>
-        private async Task<(string DocumentName, string RevisionNo, int Id, string DocID, string FileName, string ProcedureRef)> QueryFileAndMetaData(string libname, string flname, PnPContext ctx)
+        private async Task<(string DocumentName, string RevisionNo, string RevisionDate, int Id, string DocID, string FileName, string ProcedureRef)> QueryFileAndMetaData(string libname, string flname, PnPContext ctx)
         {
             // Assume the fields where not yet loaded, so loading them with the list
             var myList = ctx.Web.Lists.GetByTitle(libname, p => p.Title,
@@ -671,6 +670,7 @@ namespace Demo.Function
                       <FieldRef Name='Name' />
                       <FieldRef Name='FileRef' />
                       <FieldRef Name='RevisionNo' />
+                      <FieldRef Name='RevisionDate' />
                       <FieldRef Name='DocID' />
                       <FieldRef Name='DocumentName' />
                       <FieldRef Name='ProcedureRef' />
@@ -698,11 +698,12 @@ namespace Demo.Function
             if (items.Any())
             {
                 var doc = items.FirstOrDefault();
-
-                return (doc.Title, doc.FieldValuesAsText["RevisionNo"]?.ToString(), doc.Id, doc.FieldValuesAsText["DocID"]?.ToString(), doc.FieldValuesAsText["DocumentName"]?.ToString(), doc.FieldValuesAsText["ProcedureRef"]?.ToString());
+                DateTime.TryParse(doc.FieldValuesAsText["RevisionDate"]?.ToString(), out DateTime dt);
+                var revisionDate = dt == DateTime.MinValue ? string.Empty : dt.ToString("dd-MMM-yyyy");
+                return (doc.Title, doc.FieldValuesAsText["RevisionNo"]?.ToString(), revisionDate, doc.Id, doc.FieldValuesAsText["DocID"]?.ToString(), doc.FieldValuesAsText["DocumentName"]?.ToString(), doc.FieldValuesAsText["ProcedureRef"]?.ToString());
             }
 
-            return default((string, string, int, string, string, string));
+            return default((string, string, string, int, string, string, string));
         }
     }
 
