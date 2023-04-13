@@ -16,13 +16,13 @@
       "dynamicThrottlesEnabled": true
     }
   },
-  "SiteUrl": "https://credentinfotec.sharepoint.com/sites/testPortal",
-  "TestPortal": "https://credentinfotec.sharepoint.com/sites/testPortal",
-  "TenantId": "cf92019c-152d-42f6-bbcc-0cf96e6b0108",
-  "ClientId": "d9116b0f-89be-4922-98c1-570172d7b591",
-  "CertificateThumbPrint": "2ACCDE1A0766D5E7FF20632FD748C97A9D1E9E99",
-  "WEBSITE_LOAD_CERTIFICATES": "2ACCDE1A0766D5E7FF20632FD748C97A9D1E9E99",
-  "CertPath": "PnP.Core.SDK.AzureFunctionV5.pfx",
+  "SiteUrl": "https://piind.sharepoint.com/sites/dms-qa/",
+  "TestPortal": "https://piind.sharepoint.com/sites/dms-qa/",
+  "TenantId": "624e7232-a3b5-4b26-911e-c1886eb5be42",
+  "ClientId": "02ae1fe8-0337-4c5a-8acd-f7f7791a35c1",
+  "CertificateThumbPrint": "3D6717821C2095DC2E4398D4496278B3308190BA",
+  "WEBSITE_LOAD_CERTIFICATES": "3D6717821C2095DC2E4398D4496278B3308190BA",
+  "CertPath": "PnP.Core.SDK.AzureFunctionV4.1.pfx",
   "Pwd": "**********",
   "ApprovalHistoryExcludedRole": [
     "Publisher"
