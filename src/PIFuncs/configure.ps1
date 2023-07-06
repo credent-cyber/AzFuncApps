@@ -1,3 +1,26 @@
+
+# check if this installed 
+# Get-InstalledModule -name SharePointPnPPowerShell*
+# if yes unistall
+# UnInstall-Module -name <SharePointPnPPowerShell>
+
+#Get-installedModule -name Pnp.PowerShell
+# UnInstall-Module -name Pnp.PowerShell
+
+#Check if this command run
+
+##### install PnP.PowerShell 1.12.0 (as newer version has issues)
+# Install-Module -Name "PnP.PowerShell" -RequiredVersion 1.12.0 -Force -AllowClobber
+
+## check if this command runs
+# Register-PnPAzureADApp
+
+
+# execute Azure registration script
+
+# prerequisite - need azure admin access to register a new azure function app
+
+
 param (
 	[Parameter(Mandatory=$true)]
 	[string]
