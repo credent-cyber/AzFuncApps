@@ -59,7 +59,7 @@ namespace Demo
 
             builder.Services.AddSingleton(settings);
 
-            var cert = new X509Certificate2(certPath, certPwd);
+            var cert = new X509Certificate2(certPath, settings.Pwd);
             var log = Log.Logger;
 
             log.Information($"Certificate Thumbprint: {settings.CertificateThumbPrint}");

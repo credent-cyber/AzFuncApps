@@ -99,8 +99,7 @@ namespace Demo.Function
                     {
                         var isXlsx = Path.GetExtension(flname) == ".xlsx" ? true : false;
                         var isDocx = Path.GetExtension(flname) == ".docx" ? true : false;
-
-                        IEnumerable<IListItem> historyItems = await GetApprovalHistory(docid, ctx, fileInfo.RevisionNo);
+                        IEnumerable<IListItem> historyItems = await GetApprovalHistory(docid, ctx, fileInfo.RevisionNo);                 
 
                         var bytes = docx.GetContentBytes();
                         var tmpflName = Guid.NewGuid().ToString();
@@ -111,6 +110,7 @@ namespace Demo.Function
 
                         if (isDocx)
                         {
+                            string[] headers = { "Level in Route", "Role/Designation", "Name of the Approver", "Date of Approval" };
                             using (var doc = WordprocessingDocument.Open(tmpDocx, true))
                             {
                                 Table table;
@@ -119,12 +119,26 @@ namespace Demo.Function
 
                                 CleanExistingTable(doc, out table, out attrib);
 
-                                table = CreateApprovalHistoryTable(attrib);
-                                AppendApprovalHistory(historyItems, doc, table);
+                                #region Added by cs
+                                //Table existingTable = FindTableWithHeaders(doc, headers);
+                                //if (existingTable != null)
+                                //{
+                                //    existingTable.Remove();
+                                //}
+                                #endregion
 
-                                var table2 = CreateMetaDataTable(attrib, docid, fileInfo.ProcedureRef, fileInfo.RevisionNo.ToUpper(), fileInfo.RevisionDate, fileInfo.FileName, string.Empty);
+                                //table = CreateApprovalHistoryTable(attrib);
+                                //AppendApprovalHistory(historyItems, doc, table);
 
-                                DocumentHeader.AddMetadata(doc, table2);
+                                //var table2 = CreateMetaDataTable(attrib, docid, fileInfo.ProcedureRef, fileInfo.RevisionNo.ToUpper(), fileInfo.RevisionDate, fileInfo.FileName, string.Empty);
+                                //DocumentHeader.AddMetadata(doc, table2);
+
+
+
+                                AppendApprovalHistoryTable(historyItems, doc, headers); //Added by cs
+
+                                EditDocumentHeader.ModifyHeaderSection(doc, docid, fileInfo.ProcedureRef, fileInfo.RevisionNo.ToUpper(), fileInfo.RevisionDate, fileInfo.FileName);
+
                             }
 
                         }
@@ -132,7 +146,7 @@ namespace Demo.Function
                         if (isXlsx)
                         {
                             var auditHistory = new AuditHistory();
-                            var data  = GetHistoryDataArray(historyItems);
+                            var data = GetHistoryDataArray(historyItems);
                             auditHistory.Append(tmpDocx, null, data);
                         }
 
@@ -153,6 +167,90 @@ namespace Demo.Function
                             return new JsonResult(new { Success = true });
                     }
 
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogCritical(ex, ex.Message);
+                throw;
+            }
+        }
+
+
+        //////////////
+        ///
+
+        [FunctionName("HttpTrigger1MyFunc2HeaderUpdate")]
+        public async Task<IActionResult> HeaderUpdate(
+           [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequestMessage req)
+        {
+
+            #region Parameters
+            Logger.LogInformation("C# HTTP trigger function processed a request.");
+
+            try
+            {
+                var result = new { };
+                string docid, libname, flname, destSpFolder, targetSite;
+                bool download;
+
+                ReadDocumentApprovalHistoryParameters(req, out docid, out libname, out flname, out download, out destSpFolder, out targetSite);
+
+                #endregion
+
+                using (var ctx = await _pnpContextFactory.CreateAsync(targetSite))
+                {
+                    var fileInfo = await QueryFileAndMetaData(libname, flname, ctx);
+
+                    if (string.IsNullOrWhiteSpace(docid))
+                        docid = fileInfo.Id.ToString();
+
+                    var destinationLibrary = await ctx.Web.Lists.GetByTitleAsync(destSpFolder, l => l.RootFolder);
+
+                    var shareDocuments = await ctx.Web.Lists.GetByTitleAsync(libname, l => l.RootFolder);
+
+                    IFile docx = shareDocuments.RootFolder.Files.FirstOrDefault(o => o.Name == flname);
+
+                    var folderContents = await shareDocuments.RootFolder.GetAsync(o => o.Files);
+
+                    if (docx == null || string.IsNullOrEmpty(docid))
+                        return new NotFoundResult();
+
+                    else
+                    {
+                        var isDocx = Path.GetExtension(flname) == ".docx" ? true : false;
+
+                        var bytes = docx.GetContentBytes();
+                        var tmpflName = Guid.NewGuid().ToString();
+                        var ext =  ".docx";
+                        var tmpDocx = Path.Combine(Path.GetTempPath(), $"{tmpflName}.{ext}");
+
+                        File.WriteAllBytes(tmpDocx, bytes);
+
+                        if (isDocx)
+                        {
+                            using (var doc = WordprocessingDocument.Open(tmpDocx, true))
+                            {
+                                Table table;
+
+                                OpenXmlAttribute attrib;
+
+                                EditDocumentHeader.ModifyHeaderSection(doc, docid, fileInfo.ProcedureRef, fileInfo.RevisionNo.ToUpper(), fileInfo.RevisionDate, fileInfo.FileName);
+                              
+                            }
+                         
+                        }
+                        try
+                        {
+                            await PublishDocument(flname, shareDocuments, tmpDocx);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.Error.WriteLine(ex.Message);
+                        }
+
+                       return new JsonResult(new { Success = true });
+                    }
 
                 }
             }
@@ -162,6 +260,7 @@ namespace Demo.Function
                 throw;
             }
         }
+
 
 
         /// <summary>
@@ -247,9 +346,9 @@ namespace Demo.Function
         {
             TableCell tc = new TableCell();
 
-            if(tableCellProperties != null)
+            if (tableCellProperties != null)
                 tc.Append(tableCellProperties);
-            
+
             // Specify the width property of the table cell.
             if (width == 0)
                 tc.Append(new TableCellProperties(
@@ -359,7 +458,7 @@ namespace Demo.Function
         {
             List<string[]> historyDataArray = new List<string[]>();
 
-            foreach(var item in historyItems)
+            foreach (var item in historyItems)
             {
                 var itemArray = new List<string>();
                 var level = Convert.ToString(item["Level"]);
@@ -377,9 +476,9 @@ namespace Demo.Function
 
                 if (isFiltered)
                     continue;
-               
+
                 role = $"{role}/{designation}";
-                
+
                 itemArray.Add(level);
                 itemArray.Add(role);
                 itemArray.Add(approver);
@@ -412,7 +511,9 @@ namespace Demo.Function
         /// <param name="table"></param>
         private void AppendApprovalHistory(IEnumerable<IListItem> historyItems, WordprocessingDocument doc, Table table)
         {
-            foreach (var item in historyItems)
+            var orderedHistoryItems = historyItems.OrderBy(item => Convert.ToString(item["Level"]));
+
+            foreach (var item in orderedHistoryItems)
             {
                 var level = Convert.ToString(item["Level"]);
                 var role = Convert.ToString(item["Role"]);
@@ -453,10 +554,107 @@ namespace Demo.Function
 
             // Append the table to the document.
             doc.MainDocumentPart.Document.Body.Append(table);
-            
+
             doc.Save();
         }
 
+
+        private void AppendApprovalHistoryTable(IEnumerable<IListItem> historyItems, WordprocessingDocument doc, string[] headers)
+        {
+
+            IEnumerable<Table> existingTables = FindTablesWithHeaders(doc, headers);
+
+            // Remove existing tables
+            foreach (var existingTable in existingTables.ToList())
+            {
+                existingTable.Remove();
+            }
+                // Create a new table
+                Table table = new Table(
+                new TableProperties(
+                     new TableWidth { Type = TableWidthUnitValues.Pct, Width = "100%" },
+                    new TableBorders(
+                        new TopBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
+                        new BottomBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
+                        new LeftBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
+                        new RightBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
+                        new InsideHorizontalBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
+                        new InsideVerticalBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 }
+                    )
+                ),
+                new TableRow(headers.Select(header => new TableCell(new Paragraph(new Run(new Text(header))))))
+            );
+
+            var orderedHistoryItems = historyItems.OrderBy(item => Convert.ToString(item["Level"]));
+            foreach (var item in orderedHistoryItems)
+            {
+                if (Convert.ToString(item["Action"]) == "In Correction")
+                    continue;
+                var level = Convert.ToString(item["Level"]);
+                var role = Convert.ToString(item["Role"]);
+                var action = Convert.ToString(item["Action"]);
+                var approvalDate = Convert.ToDateTime(item["Created"]).ToString("dd-MMM-yyyy");
+                var approve = Convert.ToString(item["UserName"]);
+                var designation = Convert.ToString(item["DMSRole"]);
+
+                if (FunctionSettings.ApprovalHistoryExcludedRole.Any(o => o.Equals(role, StringComparison.InvariantCultureIgnoreCase)))
+                {
+                    Logger.LogWarning($"Role: [{role}] is filtered from the configuration settings");
+                    continue;
+                }
+
+                if (FunctionSettings.ApprovalHistoryExcludedAction.Any(o => o.Equals(action, StringComparison.InvariantCultureIgnoreCase)))
+                {
+                    Logger.LogWarning($"Action: [{action}] is filtered from the configuration settings");
+                    continue;
+                }
+
+                TableRow tr = new TableRow();
+                TableRowProperties trProp = new TableRowProperties(new TableRowHeight
+                {
+                    HeightType = new EnumValue<HeightRuleValues>(HeightRuleValues.Auto),
+                });
+
+                CreateCell(level, tr);
+                role = $"{role}/{designation}";
+                CreateCell(role, tr);
+                CreateCell(approve, tr, false, 2160);
+                CreateCell(approvalDate, tr);
+
+                table.Append(tr);
+            }
+
+            // Get the last paragraph in the document
+            Paragraph lastParagraph = doc.MainDocumentPart.Document.Body.Elements<Paragraph>().LastOrDefault();
+
+            // Append the new table to the end of the document
+            lastParagraph.InsertAfterSelf(table);
+        }
+
+        static IEnumerable<Table> FindTablesWithHeaders(WordprocessingDocument doc, string[] headers)
+        {
+            List<Table> matchingTables = new List<Table>();
+
+            foreach (Table table in doc.MainDocumentPart.Document.Body.Elements<Table>())
+            {
+                // Check if the table has the specified number of columns
+                if (table.Elements<TableRow>().Any() &&
+                    table.Elements<TableRow>().First().Elements<TableCell>().Count() == headers.Length)
+                {
+                    // Check if the headers match
+                    bool headersMatch = table.Elements<TableRow>().First().Elements<TableCell>()
+                        .Select(cell => cell.InnerText.Trim())
+                        .SequenceEqual(headers);
+
+                    if (headersMatch)
+                    {
+                        matchingTables.Add(table);
+                    }
+                }
+            }
+
+            return matchingTables;
+        }
 
         /// <summary>
         /// 
@@ -482,9 +680,113 @@ namespace Demo.Function
             return table;
         }
 
-        private static Table CreateMetaDataTable(OpenXmlAttribute attrib, string docId, 
-            string procedureReference, string version, string revisionDate, string content, string copyNumber)
+        //private static Table CreateMetaDataTable(OpenXmlAttribute attrib, string docId,
+        //    string procedureReference, string version, string revisionDate, string content, string copyNumber)
+        //{
+        //    Table table = new Table();
+        //    table.SetAttribute(attrib);
+
+        //    TableProperties tblProp = CreateTableProperties();
+        //    table.AppendChild(tblProp);
+
+        //    TableRow trHead = new TableRow();
+
+        //    CreateCell("DOC ID NO:", trHead, true);
+        //    CreateCell(docId, trHead, false);
+        //    CreateCell("PROCEDURE REF NO:", trHead, true);
+        //    CreateCell(procedureReference, trHead, false);
+
+        //    table.Append(trHead);
+
+
+        //    TableRow row2 = new TableRow();
+
+        //    CreateCell("REVISION NO:", row2, true);
+        //    CreateCell(version, row2, false);
+        //    CreateCell("REVISION DATE:", row2, true);
+        //    CreateCell(revisionDate, row2, false);
+
+        //    table.Append(row2);
+
+        //    TableRow row3 = new TableRow();
+
+        //    TableCellProperties cellOneProperties = new TableCellProperties();
+        //    cellOneProperties.Append(new HorizontalMerge()
+        //    {
+        //        Val = MergedCellValues.Restart
+        //    });
+
+        //    TableCellProperties cellTwoProperties = new TableCellProperties();
+        //    cellTwoProperties.Append(new HorizontalMerge()
+        //    {
+        //        Val = MergedCellValues.Continue
+        //    });
+
+        //    TableCellProperties cellThreeProperties = new TableCellProperties();
+        //    cellThreeProperties.Append(new HorizontalMerge()
+        //    {
+        //        Val = MergedCellValues.Continue
+        //    });
+
+        //    TableCellProperties cellFourProperties = new TableCellProperties();
+        //    cellFourProperties.Append(new HorizontalMerge()
+        //    {
+        //        Val = MergedCellValues.Continue
+        //    });
+
+        //    TableCellProperties cellFiveProperties = new TableCellProperties();
+        //    cellFiveProperties.Append(new HorizontalMerge()
+        //    {
+        //        Val = MergedCellValues.Restart
+        //    });
+
+        //    TableCellProperties cellSixProperties = new TableCellProperties();
+        //    cellSixProperties.Append(new HorizontalMerge()
+        //    {
+        //        Val = MergedCellValues.Continue
+        //    });
+
+        //    TableCellProperties cellSevenProperties = new TableCellProperties();
+        //    cellSevenProperties.Append(new HorizontalMerge()
+        //    {
+        //        Val = MergedCellValues.Restart
+        //    });
+
+        //    TableCellProperties cellEightProperties = new TableCellProperties();
+        //    cellEightProperties.Append(new HorizontalMerge()
+        //    {
+        //        Val = MergedCellValues.Continue
+        //    });
+
+
+        //    CreateCell(content, row3, true, tableCellProperties: cellOneProperties);
+        //    CreateCell("", row3, false, tableCellProperties: cellTwoProperties);
+        //    CreateCell("", row3, false, tableCellProperties: cellThreeProperties);
+        //    CreateCell("", row3, false, tableCellProperties: cellFourProperties);
+
+        //    table.Append(row3);
+
+        //    TableRow row4 = new TableRow();
+
+        //    CreateCell("Controlled if stamped in red", row4, true, tableCellProperties: cellFiveProperties);
+        //    CreateCell("", row4, true, tableCellProperties: cellSixProperties);
+
+        //    CreateCell("COPY NO.", row4, true, tableCellProperties: cellSevenProperties);
+        //    CreateCell(copyNumber, row4, true, tableCellProperties: cellEightProperties);
+
+        //    table.Append(row4);
+        //    return table;
+        //}
+
+
+        private static Table CreateMetaDataTable(OpenXmlAttribute attrib, string docId,
+    string procedureReference, string version, string revisionDate, string content, string copyNumber)
         {
+            // Check if the attrib parameter is null and create a new OpenXmlAttribute if needed
+            if (attrib == null || string.IsNullOrEmpty(attrib.LocalName))
+            {
+                attrib = new OpenXmlAttribute("tbl", "history", "", "table");
+            }
             Table table = new Table();
             table.SetAttribute(attrib);
 
@@ -493,20 +795,16 @@ namespace Demo.Function
 
             TableRow trHead = new TableRow();
 
-            CreateCell("DOC ID NO:", trHead, true);
-            CreateCell(docId, trHead, false);
-            CreateCell("PROCEDURE REF NO:", trHead, true);
-            CreateCell(procedureReference, trHead, false);
+            // Pass the values for the header cells
+            CreateCellWithText("DOC ID NO:", docId, trHead, true);
+            CreateCellWithText("PROCEDURE REF NO:", procedureReference, trHead, true);
 
             table.Append(trHead);
 
-
             TableRow row2 = new TableRow();
 
-            CreateCell("REVISION NO:", row2, true);
-            CreateCell(version, row2, false);
-            CreateCell("REVISION DATE:", row2, true);
-            CreateCell(revisionDate, row2, false);
+            CreateCellWithText("REVISION NO:", version, row2, true);
+            CreateCellWithText("REVISION DATE:", revisionDate, row2, true);
 
             table.Append(row2);
 
@@ -577,8 +875,38 @@ namespace Demo.Function
             CreateCell(copyNumber, row4, true, tableCellProperties: cellEightProperties);
 
             table.Append(row4);
+
             return table;
         }
+
+        // Helper method to create a cell with specified text content
+        private static void CreateCellWithText(string header, string text, TableRow row, bool isHeader)
+        {
+            TableCell cell = new TableCell();
+            Paragraph paragraph = new Paragraph();
+            Run run = new Run();
+            Text cellText = new Text();
+
+            // Set the cell properties based on whether it's a header cell or not
+            if (isHeader)
+            {
+                TableCellProperties cellProperties = new TableCellProperties();
+                cellProperties.Append(new TableCellWidth { Type = TableWidthUnitValues.Auto });
+                cell.Append(cellProperties);
+            }
+
+            // Set the text content
+            cellText.Text = text;
+
+            // Append the text to the run, and the run to the paragraph, and the paragraph to the cell
+            run.Append(cellText);
+            paragraph.Append(run);
+            cell.Append(paragraph);
+
+            // Append the cell to the row
+            row.Append(cell);
+        }
+
 
         /// <summary>
         /// 
@@ -594,10 +922,12 @@ namespace Demo.Function
             attrib = new OpenXmlAttribute("tbl", "history", "", "table");
             if (table != null)
             {
-                doc.MainDocumentPart.Document.Body.RemoveChild(table);
+                //doc.MainDocumentPart.Document.Body.RemoveChild(table);
                 doc.Save();
             }
         }
+
+
 
         /// <summary>
         /// 
