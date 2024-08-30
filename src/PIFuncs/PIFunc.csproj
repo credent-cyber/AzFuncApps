@@ -8,9 +8,10 @@
 		<PackageReference Include="Aspose.CAD" Version="22.7.0" />
 		<PackageReference Include="DocumentFormat.OpenXml" Version="2.16.0" />
 		<PackageReference Include="Microsoft.ApplicationInsights.WorkerService" Version="2.15.0" />
+		<PackageReference Include="Microsoft.AspNetCore.Cors" Version="2.2.0" />
 		<PackageReference Include="Microsoft.Azure.Functions.Extensions" Version="1.1.0" />
 		<PackageReference Include="Microsoft.NET.Sdk.Functions" Version="3.0.13" />
-		<PackageReference Include="PnP.Core.Auth" Version="1.5.0" />
+		<PackageReference Include="PnP.Core.Auth" Version="1.8.0" />
 		<PackageReference Include="PnP.Framework" Version="1.8.0" />
 
 		<PackageReference Include="Serilog" Version="2.10.0" />

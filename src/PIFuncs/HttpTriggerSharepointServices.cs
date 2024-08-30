@@ -20,8 +20,11 @@ namespace Demo.Function
 {
 
     using DocumentFormat.OpenXml.Wordprocessing;
+    using Microsoft.Extensions.Configuration;
+    using PIFunc;
     using PIFunc.DocxHelper;
     using XlsxHelper;
+    using PIFunc;
 
     public class HttpTriggerSharepointServices
     {
@@ -29,12 +32,14 @@ namespace Demo.Function
         private const int BORDER_WIDTH = 1;
         readonly IPnPContextFactory _pnpContextFactory;
         private static ConcurrentDictionary<string, string> _runningTasks = new ConcurrentDictionary<string, string>();
+        private readonly IConfiguration _configuration;
         public HttpTriggerSharepointServices(IPnPContextFactory pnpContextFactory,
-            ILogger<HttpTriggerSharepointServices> logger, AzureFunctionSettings functionSettings)
+            ILogger<HttpTriggerSharepointServices> logger, AzureFunctionSettings functionSettings, IConfiguration configuration)
         {
             _pnpContextFactory = pnpContextFactory;
             Logger = logger;
             FunctionSettings = functionSettings;
+            _configuration = configuration;
         }
 
         public ILogger<HttpTriggerSharepointServices> Logger { get; }
@@ -99,7 +104,7 @@ namespace Demo.Function
                     {
                         var isXlsx = Path.GetExtension(flname) == ".xlsx" ? true : false;
                         var isDocx = Path.GetExtension(flname) == ".docx" ? true : false;
-                        IEnumerable<IListItem> historyItems = await GetApprovalHistory(docid, ctx, fileInfo.RevisionNo);                 
+                        IEnumerable<IListItem> historyItems = await GetApprovalHistory(docid, ctx, fileInfo.RevisionNo);
 
                         var bytes = docx.GetContentBytes();
                         var tmpflName = Guid.NewGuid().ToString();
@@ -153,6 +158,10 @@ namespace Demo.Function
                         try
                         {
                             await PublishDocument(flname, destinationLibrary, tmpDocx);
+                            
+                            var versionHandler = new SharePointFileHandler(_pnpContextFactory, _configuration);
+                            // await versionHandler.MoveLowerVersionsToArchiveAsync(destinationLibrary, flname);
+                            //await versionHandler.MoveLowerVersionsToArchiveAsync(destSpFolder, flname, docid);
                         }
                         catch (Exception ex)
                         {
@@ -172,7 +181,10 @@ namespace Demo.Function
             catch (Exception ex)
             {
                 Logger.LogCritical(ex, ex.Message);
-                throw;
+                return new ObjectResult(new { Error = ex.Message })
+                {
+                    StatusCode = 500
+                };
             }
         }
 
@@ -222,7 +234,7 @@ namespace Demo.Function
 
                         var bytes = docx.GetContentBytes();
                         var tmpflName = Guid.NewGuid().ToString();
-                        var ext =  ".docx";
+                        var ext = ".docx";
                         var tmpDocx = Path.Combine(Path.GetTempPath(), $"{tmpflName}.{ext}");
 
                         File.WriteAllBytes(tmpDocx, bytes);
@@ -236,9 +248,9 @@ namespace Demo.Function
                                 OpenXmlAttribute attrib;
 
                                 EditDocumentHeader.ModifyHeaderSection(doc, docid, fileInfo.ProcedureRef, fileInfo.RevisionNo.ToUpper(), fileInfo.RevisionDate, fileInfo.FileName);
-                              
+
                             }
-                         
+
                         }
                         try
                         {
@@ -249,7 +261,7 @@ namespace Demo.Function
                             Console.Error.WriteLine(ex.Message);
                         }
 
-                       return new JsonResult(new { Success = true });
+                        return new JsonResult(new { Success = true });
                     }
 
                 }
@@ -257,7 +269,11 @@ namespace Demo.Function
             catch (Exception ex)
             {
                 Logger.LogCritical(ex, ex.Message);
-                throw;
+                Logger.LogCritical(ex, ex.Message);
+                return new ObjectResult(new { Error = ex.Message })
+                {
+                    StatusCode = 500
+                };
             }
         }
 
@@ -445,6 +461,7 @@ namespace Demo.Function
                 {
                     // save to destination folder
                     await destinationLibrary.RootFolder.Files.AddAsync(flname, s, true);
+
                 }
                 catch (System.Exception ex)
                 {
@@ -569,21 +586,21 @@ namespace Demo.Function
             {
                 existingTable.Remove();
             }
-                // Create a new table
-                Table table = new Table(
-                new TableProperties(
-                     new TableWidth { Type = TableWidthUnitValues.Pct, Width = "100%" },
-                    new TableBorders(
-                        new TopBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
-                        new BottomBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
-                        new LeftBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
-                        new RightBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
-                        new InsideHorizontalBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
-                        new InsideVerticalBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 }
-                    )
-                ),
-                new TableRow(headers.Select(header => new TableCell(new Paragraph(new Run(new Text(header))))))
-            );
+            // Create a new table
+            Table table = new Table(
+            new TableProperties(
+                 new TableWidth { Type = TableWidthUnitValues.Pct, Width = "100%" },
+                new TableBorders(
+                    new TopBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
+                    new BottomBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
+                    new LeftBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
+                    new RightBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
+                    new InsideHorizontalBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
+                    new InsideVerticalBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 }
+                )
+            ),
+            new TableRow(headers.Select(header => new TableCell(new Paragraph(new Run(new Text(header))))))
+        );
 
             var orderedHistoryItems = historyItems.OrderBy(item => Convert.ToString(item["Level"]));
             foreach (var item in orderedHistoryItems)
@@ -1035,6 +1052,50 @@ namespace Demo.Function
 
             return default((string, string, string, int, string, string, string));
         }
+
+
+
+
+        public async Task MoveLowerVersionsToArchiveAsync(string siteUrl, string libraryName, string fileName, string archiveLibraryName)
+        {
+            using (var context = await _pnpContextFactory.CreateAsync(new Uri(siteUrl)))
+            {
+                var library = await context.Web.Lists.GetByTitleAsync(libraryName, l => l.RootFolder);
+
+                await library.RootFolder.GetAsync(f => f.Files);
+
+                var file = library.RootFolder.Files.FirstOrDefault(f => f.Name.Equals(fileName, StringComparison.OrdinalIgnoreCase));
+
+                if (file == null)
+                {
+                    Console.WriteLine("File not found.");
+                    return;
+                }
+
+                await file.GetAsync(f => f.Versions);
+
+                var latestVersion = file.Versions.OrderByDescending(v => v.VersionLabel).FirstOrDefault();
+
+                if (latestVersion != null)
+                {
+                    foreach (var version in file.Versions)
+                    {
+                        if (version.VersionLabel != latestVersion.VersionLabel)
+                        {
+                            string sourceUrl = $"{library.RootFolder.ServerRelativeUrl}/{fileName}?version={version.VersionLabel}";
+                            string destinationUrl = $"{context.Uri.AbsoluteUri}/{archiveLibraryName}/{fileName}";
+
+                            await file.MoveToAsync(destinationUrl, MoveOperations.Overwrite);
+                        }
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("No versions found for the file.");
+                }
+            }
+        }
+
     }
 
 }

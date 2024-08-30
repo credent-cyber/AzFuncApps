@@ -11,6 +11,8 @@ using System.Security.Cryptography.X509Certificates;
 using System.IO;
 using Serilog;
 using Microsoft.Azure.WebJobs.Hosting;
+using Microsoft.AspNetCore.Builder; // Add this namespace
+
 
 [assembly: WebJobsStartup(typeof(Demo.Startup))]
 
@@ -20,7 +22,6 @@ namespace Demo
     public class Startup : FunctionsStartup
     {
         private const string TenantID = "cf92019c-152d-42f6-bbcc-0cf96e6b0108";
-
 
         public override void Configure(IFunctionsHostBuilder builder)
         {
@@ -36,8 +37,7 @@ namespace Demo
                .AddEnvironmentVariables()
                .Build();
 
-            
-            var certPath = Path.Combine(dir , config.GetValue<string>("CertPath"));
+            var certPath = Path.Combine(dir, config.GetValue<string>("CertPath"));
             var certPwd = string.Empty;
 
 #if DEBUG 
@@ -63,26 +63,23 @@ namespace Demo
             var log = Log.Logger;
 
             log.Information($"Certificate Thumbprint: {settings.CertificateThumbPrint}");
-            
+
             builder.Services.AddPnPCore(options => {
                 options.DisableTelemetry = true;
                 var authProvider = new X509CertificateAuthenticationProvider(
                     settings.ClientId,
                     settings.TenantId,
                     cert
-                    //StoreName.My,
-                    //StoreLocation.CurrentUser,
-                    //settings.CertificateThumbPrint
                 );
 
                 options.DefaultAuthenticationProvider = authProvider;
 
-                options.Sites.Add("Default", new PnP.Core.Services.Builder.Configuration.PnPCoreSiteOptions{
+                options.Sites.Add("Default", new PnP.Core.Services.Builder.Configuration.PnPCoreSiteOptions
+                {
                     SiteUrl = settings.SiteUrl,
                     AuthenticationProvider = authProvider
                 });
 
-                // TestPortal
                 options.Sites.Add("TestPortal", new PnP.Core.Services.Builder.Configuration.PnPCoreSiteOptions
                 {
                     SiteUrl = settings.TestPortal,
@@ -90,12 +87,19 @@ namespace Demo
                 });
             });
 
+            // Add CORS policy
+            //builder.Services.AddCors(options =>
+            //{
+            //    options.AddPolicy("AllowSpecificOrigin",
+            //        builder => builder.WithOrigins("https://credentinfotec.sharepoint.com")
+            //                          .AllowAnyHeader()
+            //                          .AllowAnyMethod());
+            //});
         }
 
         private static string GetEnvironmentVariable(string name)
         {
             return System.Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.Process);
-
         }
     }
 }
