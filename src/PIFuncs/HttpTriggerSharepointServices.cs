@@ -102,16 +102,19 @@ namespace Demo.Function
 
                     else
                     {
+                       // flname = "PM-PN01-QL-QA-01-V11.xlsx";
                         var isXlsx = Path.GetExtension(flname) == ".xlsx" ? true : false;
                         var isDocx = Path.GetExtension(flname) == ".docx" ? true : false;
                         IEnumerable<IListItem> historyItems = await GetApprovalHistory(docid, ctx, fileInfo.RevisionNo);
 
+                        //var fileBytes = File.ReadAllBytes(@"C:\Users\ChhaganSinha\OneDrive - Credent Infotech Solutions\Pictures\PM-PN01-QL-QA-01-V11.xlsx");
                         var bytes = docx.GetContentBytes();
                         var tmpflName = Guid.NewGuid().ToString();
                         var ext = isXlsx ? ".xlsx" : ".docx";
                         var tmpDocx = Path.Combine(Path.GetTempPath(), $"{tmpflName}.{ext}");
 
                         File.WriteAllBytes(tmpDocx, bytes);
+                        //File.WriteAllBytes(tmpDocx, fileBytes);
 
                         if (isDocx)
                         {
@@ -362,33 +365,39 @@ namespace Demo.Function
         {
             TableCell tc = new TableCell();
 
+            // Apply table cell properties if provided
             if (tableCellProperties != null)
                 tc.Append(tableCellProperties);
 
             // Specify the width property of the table cell.
             if (width == 0)
                 tc.Append(new TableCellProperties(
-                new TableCellWidth() { Type = TableWidthUnitValues.Nil }));
+                    new TableCellWidth() { Type = TableWidthUnitValues.Nil }));
             else
                 tc.Append(new TableCellProperties(
-                new TableCellWidth() { Type = TableWidthUnitValues.Dxa, Width = width.ToString() }));
+                    new TableCellWidth() { Type = TableWidthUnitValues.Dxa, Width = width.ToString() }));
 
             var text = new Text(val1);
             var run = new Run();
             var runProp = new RunProperties();
 
+            // Set font family and font size
+            runProp.Append(new RunFonts { Ascii = "Times New Roman" });
+            runProp.Append(new FontSize { Val = "24" }); // Font size in half-point measurement (12 * 2)
+
+            // Apply bold formatting if specified
             if (boldText)
                 runProp.Append(new Bold());
 
             run.Append(runProp);
             run.Append(text);
+
             // Specify the table cell content.
             tc.Append(new Paragraph(run));
 
             // Append the table cell to the table row.
             tr.Append(tc);
         }
-
 
         /// <summary>
         /// ReadDocumentApprovalHistoryParameters
@@ -578,7 +587,6 @@ namespace Demo.Function
 
         private void AppendApprovalHistoryTable(IEnumerable<IListItem> historyItems, WordprocessingDocument doc, string[] headers)
         {
-
             IEnumerable<Table> existingTables = FindTablesWithHeaders(doc, headers);
 
             // Remove existing tables
@@ -586,27 +594,29 @@ namespace Demo.Function
             {
                 existingTable.Remove();
             }
+
             // Create a new table
             Table table = new Table(
-            new TableProperties(
-                 new TableWidth { Type = TableWidthUnitValues.Pct, Width = "100%" },
-                new TableBorders(
-                    new TopBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
-                    new BottomBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
-                    new LeftBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
-                    new RightBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
-                    new InsideHorizontalBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
-                    new InsideVerticalBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 }
-                )
-            ),
-            new TableRow(headers.Select(header => new TableCell(new Paragraph(new Run(new Text(header))))))
-        );
+                new TableProperties(
+                    new TableWidth { Type = TableWidthUnitValues.Pct, Width = "100%" },
+                    new TableBorders(
+                        new TopBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
+                        new BottomBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
+                        new LeftBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
+                        new RightBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
+                        new InsideHorizontalBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
+                        new InsideVerticalBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 }
+                    )
+                ),
+                new TableRow(headers.Select(header => CreateHeaderCell(header)))
+            );
 
             var orderedHistoryItems = historyItems.OrderBy(item => Convert.ToString(item["Level"]));
             foreach (var item in orderedHistoryItems)
             {
                 if (Convert.ToString(item["Action"]) == "In Correction")
                     continue;
+
                 var level = Convert.ToString(item["Level"]);
                 var role = Convert.ToString(item["Role"]);
                 var action = Convert.ToString(item["Action"]);
@@ -647,6 +657,24 @@ namespace Demo.Function
             // Append the new table to the end of the document
             lastParagraph.InsertAfterSelf(table);
         }
+
+        private static TableCell CreateHeaderCell(string headerText)
+        {
+            return new TableCell(
+                new Paragraph(
+                    new Run(
+                        new RunProperties
+                        {
+                            RunFonts = new RunFonts { Ascii = "Times New Roman" },
+                            FontSize = new FontSize { Val = "24" }, // Font size 12 points (24 half-points)
+                            Bold = new Bold()
+                        },
+                        new Text(headerText)
+                    )
+                )
+            );
+        }
+
 
         static IEnumerable<Table> FindTablesWithHeaders(WordprocessingDocument doc, string[] headers)
         {

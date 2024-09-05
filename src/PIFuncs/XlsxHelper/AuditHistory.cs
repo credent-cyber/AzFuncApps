@@ -1,5 +1,4 @@
 ﻿using ClosedXML.Excel;
-using DocumentFormat.OpenXml.Spreadsheet;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -8,7 +7,7 @@ namespace XlsxHelper
 {
     public class AuditHistory
     {
-        public void Append(string xlsxFilename, string[] headers, List<string[]> data, string tagLabel = "Approval History", string sheetName = "Sheet1")
+        public void Append(string xlsxFilename, string[] headers, List<string[]> data, string tagLabel = "Approval History")
         {
             if (xlsxFilename == null || Path.GetExtension(xlsxFilename) != ".xlsx")
                 throw new ArgumentNullException("Invalid output filename");
@@ -18,48 +17,49 @@ namespace XlsxHelper
 
             using (var workbook = new XLWorkbook(xlsxFilename))
             {
-                int index = FindIndex(workbook, tagLabel);
-
-                if (index != -1)
+                foreach (var sheet in workbook.Worksheets)
                 {
-                    DeleteRows(workbook, index);
-                }
+                    int index = FindIndex(sheet, tagLabel);
 
-                var worksheet = workbook.Worksheet(sheetName);
-                int startingRow = worksheet.LastRowUsed().RowNumber() + 3;
-                int startingColumnIndex = 1;
-                int headerRowIndex = startingRow + 1;
-                int startingRowIndex = headerRowIndex + 1;
-
-                if (headers == null || headers.Length == 0)
-                {
-                    headers = new string[] { "Level in Route" ,  "Role/Designation", "Name of the Approver", "Date of Approval" };
-                }
-
-                AddTitle(worksheet, startingRow); //append title
-
-                for (int head = 0; head < startingColumnIndex + 3; head++) //append headers
-                {
-                    CreateHeader(worksheet, headerRowIndex, startingColumnIndex + head, headers[head]);
-                }
-
-                var row = startingRowIndex;
-                var col = startingColumnIndex;
-
-                foreach(var r in data)
-                {
-                    foreach(var v in r)
+                    if (index != -1)
                     {
-                        if (col > headers.Length)
-                            break;
-
-                        CreateRow(worksheet, row, col, v);
-                        col++;
+                        DeleteRows(sheet, index);
                     }
-                    col = startingColumnIndex;
-                    row++;
-                }
 
+                    int startingRow = sheet.LastRowUsed().RowNumber() + 3;
+                    int startingColumnIndex = 1;
+                    int headerRowIndex = startingRow + 1;
+                    int startingRowIndex = headerRowIndex + 1;
+
+                    if (headers == null || headers.Length == 0)
+                    {
+                        headers = new string[] { "Level in Route", "Role/Designation", "Name of the Approver", "Date of Approval" };
+                    }
+
+                    AddTitle(sheet, startingRow); //append title
+
+                    for (int head = 0; head < headers.Length; head++) //append headers
+                    {
+                        CreateHeader(sheet, headerRowIndex, startingColumnIndex + head, headers[head]);
+                    }
+
+                    var row = startingRowIndex;
+                    var col = startingColumnIndex;
+
+                    foreach (var r in data)
+                    {
+                        foreach (var v in r)
+                        {
+                            if (col > headers.Length)
+                                break;
+
+                            CreateRow(sheet, row, col, v);
+                            col++;
+                        }
+                        col = startingColumnIndex;
+                        row++;
+                    }
+                }
 
                 workbook.Save();
             }
@@ -68,12 +68,12 @@ namespace XlsxHelper
         private void AddTitle(IXLWorksheet worksheet, int row)
         {
             string Row = row.ToString();
-            var title = worksheet.Range($"A" + Row + ":" + "D" + Row);
-            //var title = worksheet.Range("A3:D3");
+            var title = worksheet.Range($"A{Row}:D{Row}");
             title.Merge();
             title.Value = "Approval History";
             title.Style.Font.Bold = true;
-            title.Style.Font.FontSize = 14;
+            title.Style.Font.FontSize = 12;
+            title.Style.Font.FontName = "Times New Roman";
             title.Style.Fill.BackgroundColor = XLColor.LightGray;
             title.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
 
@@ -82,14 +82,15 @@ namespace XlsxHelper
             title.Style.Border.LeftBorder = XLBorderStyleValues.Thick;
             title.Style.Border.RightBorder = XLBorderStyleValues.Thick;
             title.Style.Border.InsideBorder = XLBorderStyleValues.Thick;
-
         }
+
         private void CreateHeader(IXLWorksheet worksheet, int row, int column, string CellValue)
         {
             var cell = worksheet.Cell(row, column);
             cell.Value = CellValue;
             cell.Style.Font.Bold = true;
             cell.Style.Font.FontSize = 12;
+            cell.Style.Font.FontName = "Times New Roman";
             cell.Style.Fill.BackgroundColor = XLColor.LightBlue;
             cell.Style.Border.BottomBorder = XLBorderStyleValues.Thick;
             cell.Style.Border.TopBorder = XLBorderStyleValues.Thick;
@@ -101,15 +102,16 @@ namespace XlsxHelper
         {
             var cell = worksheet.Cell(row, column);
             cell.Value = CellValue;
+            cell.Style.Font.FontSize = 12;
+            cell.Style.Font.FontName = "Times New Roman";
             cell.Style.Border.BottomBorder = XLBorderStyleValues.Thick;
             cell.Style.Border.TopBorder = XLBorderStyleValues.Thick;
             cell.Style.Border.LeftBorder = XLBorderStyleValues.Thick;
             cell.Style.Border.RightBorder = XLBorderStyleValues.Thick;
         }
 
-        private int FindIndex(XLWorkbook workbook, string TextToFind)
+        private int FindIndex(IXLWorksheet worksheet, string TextToFind)
         {
-            var worksheet = workbook.Worksheet("Sheet1");
             string valueToFind = TextToFind;
             var rows = worksheet.RowsUsed();
             int rowIndex = -1;
@@ -124,7 +126,6 @@ namespace XlsxHelper
                         rowIndex = cell.Address.RowNumber;
                         found = true;
                         break;
-
                     }
                 }
                 if (found) { break; }
@@ -133,9 +134,8 @@ namespace XlsxHelper
             return rowIndex;
         }
 
-        private void DeleteRows(XLWorkbook workbook, int rowIndex)
+        private void DeleteRows(IXLWorksheet worksheet, int rowIndex)
         {
-            var worksheet = workbook.Worksheet("Sheet1");
             int rowToDelete = rowIndex;
             var rows = worksheet.RowsUsed();
             foreach (var row in rows)
