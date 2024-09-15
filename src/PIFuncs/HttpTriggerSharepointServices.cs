@@ -25,6 +25,8 @@ namespace Demo.Function
     using PIFunc.DocxHelper;
     using XlsxHelper;
     using PIFunc;
+    using PIFunc.XlsxHelper;
+    using ClosedXML.Excel;
 
     public class HttpTriggerSharepointServices
     {
@@ -102,12 +104,12 @@ namespace Demo.Function
 
                     else
                     {
-                       // flname = "PM-PN01-QL-QA-01-V11.xlsx";
+                        //flname = "PM-PN01-QL-QA-01-V11.xlsx";
                         var isXlsx = Path.GetExtension(flname) == ".xlsx" ? true : false;
                         var isDocx = Path.GetExtension(flname) == ".docx" ? true : false;
                         IEnumerable<IListItem> historyItems = await GetApprovalHistory(docid, ctx, fileInfo.RevisionNo);
 
-                        //var fileBytes = File.ReadAllBytes(@"C:\Users\ChhaganSinha\OneDrive - Credent Infotech Solutions\Pictures\PM-PN01-QL-QA-01-V11.xlsx");
+                        //var fileBytes = File.ReadAllBytes(@"C:\Users\ChhaganSinha\Downloads\PM-PN01-QL-QCD-04-V12 (1).xlsx");
                         var bytes = docx.GetContentBytes();
                         var tmpflName = Guid.NewGuid().ToString();
                         var ext = isXlsx ? ".xlsx" : ".docx";
@@ -161,7 +163,7 @@ namespace Demo.Function
                         try
                         {
                             await PublishDocument(flname, destinationLibrary, tmpDocx);
-                            
+
                             var versionHandler = new SharePointFileHandler(_pnpContextFactory, _configuration);
                             // await versionHandler.MoveLowerVersionsToArchiveAsync(destinationLibrary, flname);
                             //await versionHandler.MoveLowerVersionsToArchiveAsync(destSpFolder, flname, docid);
@@ -195,11 +197,96 @@ namespace Demo.Function
         //////////////
         ///
 
+        //[FunctionName("HttpTrigger1MyFunc2HeaderUpdate")]
+        //public async Task<IActionResult> HeaderUpdate(
+        //   [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequestMessage req)
+        //{
+
+        //    #region Parameters
+        //    Logger.LogInformation("C# HTTP trigger function processed a request.");
+
+        //    try
+        //    {
+        //        var result = new { };
+        //        string docid, libname, flname, destSpFolder, targetSite;
+        //        bool download;
+
+        //        ReadDocumentApprovalHistoryParameters(req, out docid, out libname, out flname, out download, out destSpFolder, out targetSite);
+
+        //        #endregion
+
+        //        using (var ctx = await _pnpContextFactory.CreateAsync(targetSite))
+        //        {
+        //            var fileInfo = await QueryFileAndMetaData(libname, flname, ctx);
+
+        //            if (string.IsNullOrWhiteSpace(docid))
+        //                docid = fileInfo.Id.ToString();
+
+        //            var destinationLibrary = await ctx.Web.Lists.GetByTitleAsync(destSpFolder, l => l.RootFolder);
+
+        //            var shareDocuments = await ctx.Web.Lists.GetByTitleAsync(libname, l => l.RootFolder);
+
+        //            IFile docx = shareDocuments.RootFolder.Files.FirstOrDefault(o => o.Name == flname);
+
+        //            var folderContents = await shareDocuments.RootFolder.GetAsync(o => o.Files);
+
+        //            if (docx == null || string.IsNullOrEmpty(docid))
+        //                return new NotFoundResult();
+
+        //            else
+        //            {
+        //                var isDocx = Path.GetExtension(flname) == ".docx" ? true : false;
+
+        //                var bytes = docx.GetContentBytes();
+        //                var tmpflName = Guid.NewGuid().ToString();
+        //                var ext = ".docx";
+        //                var tmpDocx = Path.Combine(Path.GetTempPath(), $"{tmpflName}.{ext}");
+
+        //                File.WriteAllBytes(tmpDocx, bytes);
+
+        //                if (isDocx)
+        //                {
+        //                    using (var doc = WordprocessingDocument.Open(tmpDocx, true))
+        //                    {
+        //                        Table table; 
+
+        //                        OpenXmlAttribute attrib;
+
+        //                        EditDocumentHeader.ModifyHeaderSection(doc, docid, fileInfo.ProcedureRef, fileInfo.RevisionNo.ToUpper(), fileInfo.RevisionDate, fileInfo.FileName);
+
+        //                    }
+
+        //                }
+        //                try
+        //                {
+        //                    await PublishDocument(flname, shareDocuments, tmpDocx);
+        //                }
+        //                catch (Exception ex)
+        //                {
+        //                    Console.Error.WriteLine(ex.Message);
+        //                }
+
+        //                return new JsonResult(new { Success = true });
+        //            }
+
+        //        }
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        Logger.LogCritical(ex, ex.Message);
+        //        Logger.LogCritical(ex, ex.Message);
+        //        return new ObjectResult(new { Error = ex.Message })
+        //        {
+        //            StatusCode = 500
+        //        };
+        //    }
+        //}
+
+
         [FunctionName("HttpTrigger1MyFunc2HeaderUpdate")]
         public async Task<IActionResult> HeaderUpdate(
-           [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequestMessage req)
+            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequestMessage req)
         {
-
             #region Parameters
             Logger.LogInformation("C# HTTP trigger function processed a request.");
 
@@ -209,8 +296,8 @@ namespace Demo.Function
                 string docid, libname, flname, destSpFolder, targetSite;
                 bool download;
 
+                // Read parameters from the request
                 ReadDocumentApprovalHistoryParameters(req, out docid, out libname, out flname, out download, out destSpFolder, out targetSite);
-
                 #endregion
 
                 using (var ctx = await _pnpContextFactory.CreateAsync(targetSite))
@@ -221,57 +308,66 @@ namespace Demo.Function
                         docid = fileInfo.Id.ToString();
 
                     var destinationLibrary = await ctx.Web.Lists.GetByTitleAsync(destSpFolder, l => l.RootFolder);
-
                     var shareDocuments = await ctx.Web.Lists.GetByTitleAsync(libname, l => l.RootFolder);
-
-                    IFile docx = shareDocuments.RootFolder.Files.FirstOrDefault(o => o.Name == flname);
+                    IFile file = shareDocuments.RootFolder.Files.FirstOrDefault(o => o.Name == flname);
 
                     var folderContents = await shareDocuments.RootFolder.GetAsync(o => o.Files);
 
-                    if (docx == null || string.IsNullOrEmpty(docid))
+                    if (file == null || string.IsNullOrEmpty(docid))
                         return new NotFoundResult();
 
-                    else
+                    // Check file extension to determine if it's Excel or Word
+                    var extension = Path.GetExtension(flname).ToLower();
+                    var isExcel = extension == ".xlsx";
+                    var isDocx = extension == ".docx";
+
+                    // Get file content bytes
+                    var bytes = file.GetContentBytes();
+                    var tmpflName = Guid.NewGuid().ToString();
+                    var tmpFile = Path.Combine(Path.GetTempPath(), $"{tmpflName}{extension}");
+
+                    File.WriteAllBytes(tmpFile, bytes);
+
+                    // Handle Excel files
+                    if (isExcel)
                     {
-                        var isDocx = Path.GetExtension(flname) == ".docx" ? true : false;
-
-                        var bytes = docx.GetContentBytes();
-                        var tmpflName = Guid.NewGuid().ToString();
-                        var ext = ".docx";
-                        var tmpDocx = Path.Combine(Path.GetTempPath(), $"{tmpflName}.{ext}");
-
-                        File.WriteAllBytes(tmpDocx, bytes);
-
-                        if (isDocx)
+                        using (var workbook = new XLWorkbook(tmpFile))
                         {
-                            using (var doc = WordprocessingDocument.Open(tmpDocx, true))
-                            {
-                                Table table;
-
-                                OpenXmlAttribute attrib;
-
-                                EditDocumentHeader.ModifyHeaderSection(doc, docid, fileInfo.ProcedureRef, fileInfo.RevisionNo.ToUpper(), fileInfo.RevisionDate, fileInfo.FileName);
-
-                            }
-
+                            EditExcelHeader.ModifyHeaderSection(workbook, docid, fileInfo.ProcedureRef, fileInfo.RevisionNo.ToUpper(), fileInfo.RevisionDate, fileInfo.FileName);
                         }
-                        try
-                        {
-                            await PublishDocument(flname, shareDocuments, tmpDocx);
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.Error.WriteLine(ex.Message);
-                        }
-
-                        return new JsonResult(new { Success = true });
                     }
 
+                    // Handle Word documents
+                    else if (isDocx)
+                    {
+                        using (var doc = WordprocessingDocument.Open(tmpFile, true))
+                        {
+                            EditDocumentHeader.ModifyHeaderSection(doc, docid, fileInfo.ProcedureRef, fileInfo.RevisionNo.ToUpper(), fileInfo.RevisionDate, fileInfo.FileName);
+                        }
+                    }
+
+                    try
+                    {
+                        // Publish the modified file back
+                        await PublishDocument(flname, shareDocuments, tmpFile);
+
+                        // Return the published document or any other result
+                        return new JsonResult(new { Success = true });
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.Error.WriteLine(ex.Message);
+                    }
+                    if (download)
+                    {
+                        return DownloadPublishedDocument(flname, tmpFile);
+                    }
+                    else
+                        return new JsonResult(new { Success = true });
                 }
             }
             catch (Exception ex)
             {
-                Logger.LogCritical(ex, ex.Message);
                 Logger.LogCritical(ex, ex.Message);
                 return new ObjectResult(new { Error = ex.Message })
                 {
@@ -279,7 +375,6 @@ namespace Demo.Function
                 };
             }
         }
-
 
 
         /// <summary>
@@ -1016,7 +1111,7 @@ namespace Demo.Function
             if (historyItems?.Count() == 0)
             {
                 Logger.LogError($"Approval History for the document {docid} not found");
-                throw new Exception("Approval history not found");
+                throw new Exception($"Approval History for the document {docid} not found");
             }
 
             return historyItems;
