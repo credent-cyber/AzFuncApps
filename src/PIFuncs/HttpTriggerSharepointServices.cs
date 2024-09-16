@@ -316,17 +316,20 @@ namespace Demo.Function
                     if (file == null || string.IsNullOrEmpty(docid))
                         return new NotFoundResult();
 
+                    //flname = "PM-PN01-QL-QA-01-V11.xlsx";
                     // Check file extension to determine if it's Excel or Word
                     var extension = Path.GetExtension(flname).ToLower();
                     var isExcel = extension == ".xlsx";
                     var isDocx = extension == ".docx";
 
+                    //var fileBytes = File.ReadAllBytes(@"C:\Users\ChhaganSinha\Downloads\PM-PN01-QL-QA-01-V11.xlsx");
                     // Get file content bytes
                     var bytes = file.GetContentBytes();
                     var tmpflName = Guid.NewGuid().ToString();
                     var tmpFile = Path.Combine(Path.GetTempPath(), $"{tmpflName}{extension}");
 
                     File.WriteAllBytes(tmpFile, bytes);
+                    //File.WriteAllBytes(tmpFile, fileBytes);
 
                     // Handle Excel files
                     if (isExcel)
@@ -350,20 +353,19 @@ namespace Demo.Function
                     {
                         // Publish the modified file back
                         await PublishDocument(flname, shareDocuments, tmpFile);
-
-                        // Return the published document or any other result
-                        return new JsonResult(new { Success = true });
+                        
+                        if (download)
+                        {
+                            return DownloadPublishedDocument(flname, tmpFile);
+                        }
+                       
                     }
                     catch (Exception ex)
                     {
                         Console.Error.WriteLine(ex.Message);
                     }
-                    if (download)
-                    {
-                        return DownloadPublishedDocument(flname, tmpFile);
-                    }
-                    else
-                        return new JsonResult(new { Success = true });
+                    // Return the published document or any other result
+                    return new JsonResult(new { Success = true });
                 }
             }
             catch (Exception ex)
