@@ -13,6 +13,10 @@ namespace PIFunc.XlsxHelper
             {
                 foreach (IXLWorksheet worksheet in workbook.Worksheets)
                 {
+                    // Calculate the max used range of the body (starting from row 8)
+                    int maxBodyColumn = GetMaxUsedColumnInBody(worksheet);
+                    Console.WriteLine($"Max Body Column: {maxBodyColumn}");
+
                     foreach (IXLRow row in worksheet.Rows(1, 7))
                     {
                         int docIdColumn = -1;
@@ -23,6 +27,7 @@ namespace PIFunc.XlsxHelper
                         int copyNoColumn = -1;
                         int controlledStampColumn = -1;
                         int pageColumn = -1;
+                        int piIndustriesLtdColumn = -1;
 
                         foreach (IXLCell cell in row.Cells())
                         {
@@ -65,6 +70,10 @@ namespace PIFunc.XlsxHelper
                             {
                                 pageColumn = cell.Address.ColumnNumber;
                             }
+                            else if (cellValue.Contains("PI INDUSTRIES LTD") || cellValue.Contains("PI INDUSTURIES LTD"))
+                            {
+                                piIndustriesLtdColumn = cell.Address.ColumnNumber;
+                            }
                         }
 
                         // Handle "DOC ID" to "PROCEDURE REF" merge logic
@@ -73,16 +82,10 @@ namespace PIFunc.XlsxHelper
                             MergeBetweenCells(worksheet, row.RowNumber(), docIdColumn + 1, procedureRefColumn - 1);
                         }
 
-                        // Handle "PROCEDURE REF" to the last used column merge logic
-                        if (procedureRefColumn != -1)
+                        // Handle "PROCEDURE REF" to maxBodyColumn merge logic
+                        if (procedureRefColumn != -1 && procedureRefColumn + 1 <= maxBodyColumn)
                         {
-                            int lastColumn = GetLastUsedColumnInRow(row);
-
-                            // Ensure the merge starts after the "PROCEDURE REF" column and excludes it
-                            if (procedureRefColumn < lastColumn)
-                            {
-                                MergeBetweenCells(worksheet, row.RowNumber(), procedureRefColumn + 1, lastColumn);
-                            }
+                            MergeBetweenCells(worksheet, row.RowNumber(), procedureRefColumn + 1, maxBodyColumn);
                         }
 
                         // Handle "REVISION NO" to "REVISION DATE" merge logic
@@ -91,31 +94,22 @@ namespace PIFunc.XlsxHelper
                             MergeBetweenCells(worksheet, row.RowNumber(), revisionNoColumn + 1, revisionDateColumn - 1);
                         }
 
-                        // Handle "REVISION DATE" to the last used column merge logic
-                        if (revisionDateColumn != -1)
+                        // Handle "REVISION DATE" to maxBodyColumn merge logic
+                        if (revisionDateColumn != -1 && revisionDateColumn + 1 <= maxBodyColumn)
                         {
-                            int lastColumn = GetLastUsedColumnInRow(row);
-
-                            // Ensure the merge starts after the "REVISION DATE" column and excludes it
-                            if (revisionDateColumn < lastColumn)
-                            {
-                                MergeBetweenCells(worksheet, row.RowNumber(), revisionDateColumn + 1, lastColumn);
-                            }
+                            MergeBetweenCells(worksheet, row.RowNumber(), revisionDateColumn + 1, maxBodyColumn);
                         }
 
-                        // Handle "Document Name" to the last column merge logic
-                        if (documentNameColumn != -1)
+                        // Handle "Document Name" to maxBodyColumn merge logic
+                        if (documentNameColumn != -1 && documentNameColumn + 1 <= maxBodyColumn)
                         {
-                            int lastColumn = GetLastUsedColumnInRow(row);
-                            if (documentNameColumn < lastColumn)
-                            {
-                                // Merge cells after "Document Name"
-                                MergeBetweenCells(worksheet, row.RowNumber(), documentNameColumn + 1, lastColumn, true);
+                            MergeBetweenCells(worksheet, row.RowNumber(), documentNameColumn + 1, maxBodyColumn, true);
+                        }
 
-                                // Ensure the text is bold in the merged range
-                                var mergedRange = worksheet.Range(row.RowNumber(), documentNameColumn + 1, row.RowNumber(), lastColumn);
-                                mergedRange.Style.Font.Bold = true;
-                            }
+                        // Handle "PAGE:" directly to maxBodyColumn merge logic
+                        if (pageColumn != -1)
+                        {
+                            MergeBetweenCells(worksheet, row.RowNumber(), pageColumn, maxBodyColumn);
                         }
 
                         // Merge between "COPY NO." and "Controlled, If stamped in red."
@@ -129,6 +123,30 @@ namespace PIFunc.XlsxHelper
                         {
                             MergeBetweenCells(worksheet, row.RowNumber(), controlledStampColumn + 1, pageColumn - 1);
                         }
+
+                        // Insert two blank rows immediately after the row containing "COPY NO.", "Controlled, If stamped in red.", and "PAGE: of"
+                        if (copyNoColumn != -1 && controlledStampColumn != -1 && pageColumn != -1)
+                        {
+                            // Insert two rows below the current row
+                            worksheet.Row(row.RowNumber() + 1).InsertRowsBelow(2);
+
+                            // Merge all cells in the inserted rows
+                            IXLRange mergedRange1 = worksheet.Range(row.RowNumber() + 1, copyNoColumn, row.RowNumber() + 1, maxBodyColumn).Merge();
+                            IXLRange mergedRange2 = worksheet.Range(row.RowNumber() + 2, copyNoColumn, row.RowNumber() + 2, maxBodyColumn).Merge();
+
+                            // Apply no borders below and on the sides of the inserted rows
+                            mergedRange1.Style.Border.OutsideBorder = XLBorderStyleValues.None;
+                            mergedRange1.Style.Border.InsideBorder = XLBorderStyleValues.None;
+                            mergedRange2.Style.Border.OutsideBorder = XLBorderStyleValues.None;
+                            mergedRange2.Style.Border.InsideBorder = XLBorderStyleValues.None;
+                        }
+
+                        // Handle "PI INDUSTRIES LTD" to maxBodyColumn merge logic
+                        if (piIndustriesLtdColumn != -1)
+                        {
+                            // Merge "PI INDUSTRIES LTD" to maxBodyColumn and remove the right border
+                            MergeBetweenCells(worksheet, row.RowNumber(), piIndustriesLtdColumn, maxBodyColumn, removeRightBorder: true);
+                        }
                     }
                 }
 
@@ -139,6 +157,44 @@ namespace PIFunc.XlsxHelper
                 Console.WriteLine($"An error occurred: {ex.Message}");
             }
         }
+
+
+
+        // Updated MergeBetweenCells method to include borders
+        private static void MergeBetweenCells(IXLWorksheet worksheet, int rowNumber, int startColumn, int endColumn, bool centerText = false, bool removeRightBorder = false)
+        {
+            if (startColumn <= endColumn)
+            {
+                // Get the first cell in the range
+                IXLCell firstCell = worksheet.Cell(rowNumber, startColumn);
+
+                // Merge the cells in the specified range
+                var mergedRange = worksheet.Range(rowNumber, startColumn, rowNumber, endColumn).Merge();
+
+                // Retain the content of the first cell in the merged range
+                worksheet.Cell(rowNumber, startColumn).Value = firstCell.GetString();
+
+                // Apply borders to the merged cells
+                mergedRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                mergedRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+
+                // Remove the right border if specified
+                if (removeRightBorder)
+                {
+                    mergedRange.Style.Border.RightBorder = XLBorderStyleValues.None;
+                }
+
+                // Center the text if needed (e.g., for "Document Name")
+                if (centerText)
+                {
+                    mergedRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                    mergedRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                }
+            }
+        }
+
+
+
 
         // Helper method to get the last used column number of a row, considering all cells, including empty ones
         private static int GetLastUsedColumnInRow(IXLRow row)
@@ -152,7 +208,7 @@ namespace PIFunc.XlsxHelper
 
         // Method to merge cells in a given range, but retain the content of the first cell in that range
         // Added parameter to center text for "Document Name" row
-        private static void MergeBetweenCells(IXLWorksheet worksheet, int rowNumber, int startColumn, int endColumn, bool centerText = false)
+        private static void MergeBetweenCellss(IXLWorksheet worksheet, int rowNumber, int startColumn, int endColumn, bool centerText = false)
         {
             if (startColumn <= endColumn)
             {
@@ -257,5 +313,46 @@ namespace PIFunc.XlsxHelper
             }
             return columnName;
         }
+
+
+        // Get maximum used column in the body (starting from row 8)
+        private static int GetMaxUsedColumnInBody(IXLWorksheet worksheet)
+        {
+            int maxColumn = 0;
+
+            // Loop through the rows in the body (starting from row 8)
+            foreach (IXLRow row in worksheet.Rows(8, worksheet.LastRowUsed().RowNumber()))
+            {
+                // Get the last used cell in this row
+                int lastUsedColumn = row.LastCellUsed()?.Address.ColumnNumber ?? 0;
+
+                // Check for any merged ranges that might extend beyond the last used cell
+                foreach (var mergedRange in worksheet.MergedRanges)
+                {
+                    // If the merged range intersects with the current row
+                    if (mergedRange.FirstRow().RowNumber() == row.RowNumber())
+                    {
+                        // Find the last column in the merged range
+                        int lastMergedColumn = mergedRange.LastColumn().ColumnNumber();
+
+                        // Update the last used column if the merged range extends further
+                        if (lastMergedColumn > lastUsedColumn)
+                        {
+                            lastUsedColumn = lastMergedColumn;
+                        }
+                    }
+                }
+
+                // Update max column if necessary
+                if (lastUsedColumn > maxColumn)
+                {
+                    maxColumn = lastUsedColumn;
+                }
+            }
+
+            return maxColumn;
+        }
+
+
     }
 }
