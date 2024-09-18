@@ -316,13 +316,13 @@ namespace Demo.Function
                     if (file == null || string.IsNullOrEmpty(docid))
                         return new NotFoundResult();
 
-                    flname = "PM-PN01-QL-QA-01-V11.xlsx";
+                    flname = "TEST EXCEL TEMPLATE.xlsx";
                     // Check file extension to determine if it's Excel or Word
                     var extension = Path.GetExtension(flname).ToLower();
                     var isExcel = extension == ".xlsx";
                     var isDocx = extension == ".docx";
 
-                    var fileBytes = File.ReadAllBytes(@"C:\Users\ChhaganSinha\Downloads\PM-PN01-QL-QA-01-V11.xlsx");
+                    var fileBytes = File.ReadAllBytes(@"C:\Users\ChhaganSinha\Downloads\TEST EXCEL TEMPLATE.xlsx");
                     // Get file content bytes
                     var bytes = file.GetContentBytes();
                     var tmpflName = Guid.NewGuid().ToString();

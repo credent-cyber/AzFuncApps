@@ -15,9 +15,9 @@ namespace PIFunc.XlsxHelper
                 {
                     // Calculate the max used range of the body (starting from row 8)
                     int maxBodyColumn = GetMaxUsedColumnInBody(worksheet);
-                    Console.WriteLine($"Max Body Column: {maxBodyColumn}");
+                    //Console.WriteLine($"Max Body Column: {maxBodyColumn}");
 
-                    foreach (IXLRow row in worksheet.Rows(1, 7))
+                    foreach (IXLRow row in worksheet.Rows(1, 5))
                     {
                         int docIdColumn = -1;
                         int procedureRefColumn = -1;
@@ -53,7 +53,7 @@ namespace PIFunc.XlsxHelper
                                 UpdateAdjacentCell(worksheet, cell, revisionDate, false);
                                 revisionDateColumn = cell.Address.ColumnNumber;
                             }
-                            else if (cellValue.Contains("Document Name"))
+                            else if (cellValue.Trim().ToLower().Contains("document name".ToLower()))
                             {
                                 UpdateAdjacentCell(worksheet, cell, fileName, true); // Bold the Document Name
                                 documentNameColumn = cell.Address.ColumnNumber;
@@ -145,7 +145,7 @@ namespace PIFunc.XlsxHelper
                         if (piIndustriesLtdColumn != -1)
                         {
                             // Merge "PI INDUSTRIES LTD" to maxBodyColumn and remove the right border
-                            MergeBetweenCells(worksheet, row.RowNumber(), piIndustriesLtdColumn, maxBodyColumn, removeRightBorder: true);
+                            MergeBetweenCells(worksheet, row.RowNumber(), piIndustriesLtdColumn, maxBodyColumn, removeRightBorder: true, allBorder:true);
                         }
                     }
                 }
@@ -161,7 +161,7 @@ namespace PIFunc.XlsxHelper
 
 
         // Updated MergeBetweenCells method to include borders
-        private static void MergeBetweenCells(IXLWorksheet worksheet, int rowNumber, int startColumn, int endColumn, bool centerText = false, bool removeRightBorder = false)
+        private static void MergeBetweenCells(IXLWorksheet worksheet, int rowNumber, int startColumn, int endColumn, bool centerText = false, bool removeRightBorder = false, bool allBorder = false)
         {
             if (startColumn <= endColumn)
             {
@@ -184,6 +184,14 @@ namespace PIFunc.XlsxHelper
                     mergedRange.Style.Border.RightBorder = XLBorderStyleValues.None;
                 }
 
+                if (allBorder)
+                {
+                    mergedRange.Style.Border.TopBorder = XLBorderStyleValues.Thick;
+                    mergedRange.Style.Border.LeftBorder = XLBorderStyleValues.Thick;
+                    mergedRange.Style.Border.RightBorder = XLBorderStyleValues.Thick;
+                    mergedRange.Style.Border.BottomBorder = XLBorderStyleValues.Thick;
+                }
+
                 // Center the text if needed (e.g., for "Document Name")
                 if (centerText)
                 {
@@ -204,34 +212,6 @@ namespace PIFunc.XlsxHelper
                 var mergedRange = cell.MergedRange();
                 return mergedRange != null ? mergedRange.LastCell().Address.ColumnNumber : cell.Address.ColumnNumber;
             }).Max();
-        }
-
-        // Method to merge cells in a given range, but retain the content of the first cell in that range
-        // Added parameter to center text for "Document Name" row
-        private static void MergeBetweenCellss(IXLWorksheet worksheet, int rowNumber, int startColumn, int endColumn, bool centerText = false)
-        {
-            if (startColumn <= endColumn)
-            {
-                // Get the first cell in the range
-                IXLCell firstCell = worksheet.Cell(rowNumber, startColumn);
-
-                // Merge the cells in the specified range
-                var mergedRange = worksheet.Range(rowNumber, startColumn, rowNumber, endColumn).Merge();
-
-                // Retain the content of the first cell in the merged range
-                worksheet.Cell(rowNumber, startColumn).Value = firstCell.GetString();
-
-                // Apply borders to the merged cells
-                mergedRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
-                mergedRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
-
-                // Center the text if needed (e.g., for "Document Name")
-                if (centerText)
-                {
-                    mergedRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                    mergedRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-                }
-            }
         }
 
         // Helper method to update the adjacent cell with the new value, wrap text, and apply formatting
