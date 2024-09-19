@@ -27,6 +27,7 @@ namespace Demo.Function
     using PIFunc;
     using PIFunc.XlsxHelper;
     using ClosedXML.Excel;
+    using NPOI.XSSF.UserModel;
 
     public class HttpTriggerSharepointServices
     {
@@ -334,10 +335,25 @@ namespace Demo.Function
                     // Handle Excel files
                     if (isExcel)
                     {
-                        using (var workbook = new XLWorkbook(tmpFile))
+                        //using (var workbook = new XLWorkbook(tmpFile))
+                        //{
+                        //    //EditExcelHeader.ModifyHeaderSection(workbook, docid, fileInfo.ProcedureRef, fileInfo.RevisionNo.ToUpper(), fileInfo.RevisionDate, fileInfo.FileName);
+                        //}
+
+                        using (var fileStream = new FileStream(tmpFile, FileMode.Open, FileAccess.ReadWrite))
                         {
-                            EditExcelHeader.ModifyHeaderSection(workbook, docid, fileInfo.ProcedureRef, fileInfo.RevisionNo.ToUpper(), fileInfo.RevisionDate, fileInfo.FileName);
+                            XSSFWorkbook workbook = new XSSFWorkbook(fileStream);
+                            AuditHistoryNPOI.ModifyHeaderSection(workbook, docid, fileInfo.ProcedureRef, fileInfo.RevisionNo.ToUpper(), fileInfo.RevisionDate, fileInfo.FileName,tmpFile);
+
+                            // Ensure that the file stream is at the beginning before writing changes
+                            //fileStream.Position = 0;
+                            //workbook.Write(fileStream);
+
+                            // Truncate the file to the current position to remove any leftover content
+                            //fileStream.SetLength(fileStream.Position);
                         }
+
+
                     }
 
                     // Handle Word documents
