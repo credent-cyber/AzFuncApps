@@ -317,20 +317,20 @@ namespace Demo.Function
                     if (file == null || string.IsNullOrEmpty(docid))
                         return new NotFoundResult();
 
-                    flname = "TEST EXCEL TEMPLATE.xlsx";
+                    //flname = "TEST EXCEL TEMPLATE.xlsx";
                     // Check file extension to determine if it's Excel or Word
                     var extension = Path.GetExtension(flname).ToLower();
                     var isExcel = extension == ".xlsx";
                     var isDocx = extension == ".docx";
 
-                    var fileBytes = File.ReadAllBytes(@"C:\Users\ChhaganSinha\Downloads\TEST EXCEL TEMPLATE.xlsx");
+                    //var fileBytes = File.ReadAllBytes(@"C:\Users\ChhaganSinha\Downloads\TEST EXCEL TEMPLATE.xlsx");
                     // Get file content bytes
                     var bytes = file.GetContentBytes();
                     var tmpflName = Guid.NewGuid().ToString();
                     var tmpFile = Path.Combine(Path.GetTempPath(), $"{tmpflName}{extension}");
 
-                    //File.WriteAllBytes(tmpFile, bytes);
-                    File.WriteAllBytes(tmpFile, fileBytes);
+                    File.WriteAllBytes(tmpFile, bytes);
+                    //File.WriteAllBytes(tmpFile, fileBytes);
 
                     // Handle Excel files
                     if (isExcel)
@@ -344,13 +344,6 @@ namespace Demo.Function
                         {
                             XSSFWorkbook workbook = new XSSFWorkbook(fileStream);
                             AuditHistoryNPOI.ModifyHeaderSection(workbook, docid, fileInfo.ProcedureRef, fileInfo.RevisionNo.ToUpper(), fileInfo.RevisionDate, fileInfo.FileName,tmpFile);
-
-                            // Ensure that the file stream is at the beginning before writing changes
-                            //fileStream.Position = 0;
-                            //workbook.Write(fileStream);
-
-                            // Truncate the file to the current position to remove any leftover content
-                            //fileStream.SetLength(fileStream.Position);
                         }
 
 
@@ -368,7 +361,7 @@ namespace Demo.Function
                     try
                     {
                         // Publish the modified file back
-                        //await PublishDocument(flname, shareDocuments, tmpFile);
+                        await PublishDocument(flname, shareDocuments, tmpFile);
                         
                         if (download)
                         {
@@ -380,7 +373,7 @@ namespace Demo.Function
                     {
                         Console.Error.WriteLine(ex.Message);
                     }
-                    // Return the published document or any other result
+
                     return new JsonResult(new { Success = true });
                 }
             }

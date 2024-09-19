@@ -108,7 +108,7 @@ namespace PIFunc.XlsxHelper
 
                         if (documentNameColumn != -1 && documentNameColumn + 1 <= maxBodyColumn)
                         {
-                            MergeBetweenCells(sheet, row.RowNum, documentNameColumn + 1, maxBodyColumn, true);
+                            MergeBetweenCells(sheet, row.RowNum, documentNameColumn + 1, maxBodyColumn, true, isBold: true);
                         }
 
                         if (pageColumn != -1)
@@ -137,7 +137,7 @@ namespace PIFunc.XlsxHelper
 
                         if (piIndustriesLtdColumn != -1)
                         {
-                            MergeBetweenCells(sheet, row.RowNum, piIndustriesLtdColumn, maxBodyColumn, removeRightBorder: true, allBorder: true);
+                            MergeBetweenCells(sheet, row.RowNum, piIndustriesLtdColumn, maxBodyColumn, centerText:true, removeRightBorder: true, allBorder: true, isBold:true);
                         }
                     }
                 }
@@ -155,7 +155,7 @@ namespace PIFunc.XlsxHelper
             }
         }
 
-        private static void MergeBetweenCells(ISheet sheet, int rowNumber, int startColumn, int endColumn, bool centerText = false, bool removeRightBorder = false, bool allBorder = false)
+        private static void MergeBetweenCells(ISheet sheet, int rowNumber, int startColumn, int endColumn, bool centerText = false, bool removeRightBorder = false, bool allBorder = false, bool isBold = false)
         {
             if (startColumn <= endColumn)
             {
@@ -199,10 +199,17 @@ namespace PIFunc.XlsxHelper
                     style.BorderBottom = BorderStyle.Thick;
                 }
 
+                IFont font = sheet.Workbook.CreateFont();
+                font.FontName = "Times New Roman";  
+                font.FontHeightInPoints = 12;  
+                font.IsBold = isBold;  
+                style.SetFont(font);  
+
                 for (int col = startColumn; col <= endColumn; col++)
                 {
                     ICell cell = row.GetCell(col) ?? row.CreateCell(col);
                     cell.CellStyle = style;
+
                     if (centerText)
                     {
                         style.Alignment = HorizontalAlignment.Center;
@@ -234,23 +241,24 @@ namespace PIFunc.XlsxHelper
             // Set the new cell value
             nextCell.SetCellValue(WrapText(newValue, 50));
 
-            // Create a new font
+            // Create a new font and cell style for each cell to ensure unique settings
             IFont font = sheet.Workbook.CreateFont();
-            font.FontName = "Times New Roman";
-            font.FontHeightInPoints = 12;
+            font.FontName = "Times New Roman";  // Set the correct font name
+            font.FontHeightInPoints = 12;  // Set the font size to 12
+            font.IsBold = isBold;  // Set bold if specified
 
-            font.IsBold = isBold;
-
-            // Create a new cell style
+            // Create a new cell style for each cell
             ICellStyle style = sheet.Workbook.CreateCellStyle();
-            style.SetFont(font);
-            style.WrapText = true;
+            style.SetFont(font);  // Assign the font to the style
+            style.WrapText = true;  // Enable text wrapping
 
-            // Apply the style to the cell
+            // Apply the style to the adjacent cell
             nextCell.CellStyle = style;
 
-            //Console.WriteLine($"Applied style to cell at column {columnIndex + 1}: FontName={font.FontName}, FontHeight={font.FontHeightInPoints}, IsBold={font.IsBold}");
+            // Optional: you can print some debug info to verify
+            Console.WriteLine($"Applied style to cell at column {columnIndex + 1}: FontName={font.FontName}, FontHeight={font.FontHeightInPoints}, IsBold={font.IsBold}");
         }
+
 
 
 
