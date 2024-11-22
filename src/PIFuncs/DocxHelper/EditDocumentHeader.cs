@@ -1,6 +1,8 @@
 ﻿using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Graph;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -202,5 +204,64 @@ namespace PIFunc.DocxHelper
                 }
             }
         }
+
+
+        public static IActionResult ModifyHeaderTitle(WordprocessingDocument doc, string FileName)
+        {
+            try
+            {
+                bool changeMade = false;
+
+                RemoveContentControls(doc);
+
+                MainDocumentPart mainPart = doc.MainDocumentPart;
+
+                foreach (var headerPart in mainPart.HeaderParts)
+                {
+                    foreach (TableRow row in headerPart.Header.Descendants<TableRow>())
+                    {
+                        var cellValues = row.Descendants<TableCell>()
+                            .Select(cell => string.Join("", cell.Descendants<Text>().Select(text => text.Text)))
+                            .ToList();
+
+                        string misspelledLabel = "PI INDUSTURIES LTD";
+                        string correctLabel = "PI INDUSTRIES LTD";
+
+                        int labelIndex = cellValues.FindIndex(value => value.Contains(misspelledLabel, StringComparison.InvariantCultureIgnoreCase));
+
+                        if (labelIndex != -1)
+                        {
+                            var targetCell = row.Descendants<TableCell>().ElementAt(labelIndex);
+                            var textElement = targetCell.Descendants<Text>().FirstOrDefault();
+
+                            if (textElement != null)
+                            {
+                                if(textElement.ToString().Contains(misspelledLabel))
+                                {
+                                    textElement.Text = correctLabel;
+                                    changeMade = true;
+                                }
+
+                            }
+                        }
+                    }
+                }
+
+                if (changeMade)
+                {
+                    doc.Save();
+                    return new JsonResult(new { message = $"Document '{FileName}' updated. 'PI INDUSTURIES LTD' corrected to 'PI INDUSTRIES LTD'." });
+                }
+                else
+                {
+                    return new JsonResult(new { message = $"No change required in document '{FileName}'. 'PI INDUSTRIES LTD' already correct." });
+                }
+            }
+            catch (Exception ex)
+            {
+                return new JsonResult(new { error = $"An error occurred while processing the document '{FileName}': {ex.Message}" });
+            }
+        }
+
     }
 }

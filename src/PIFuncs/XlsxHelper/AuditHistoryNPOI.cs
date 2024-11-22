@@ -1,5 +1,9 @@
-﻿using DocumentFormat.OpenXml.Spreadsheet;
+﻿using DocumentFormat.OpenXml.Office2016.Excel;
+using DocumentFormat.OpenXml.Spreadsheet;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Graph;
 using NPOI.HPSF;
+using NPOI.HSSF.UserModel;
 using NPOI.SS.UserModel;
 using NPOI.XSSF.UserModel;
 using System;
@@ -45,27 +49,27 @@ namespace PIFunc.XlsxHelper
 
                             if (cellValue.Contains("DOC ID"))
                             {
-                                UpdateAdjacentCell(sheet, row, cell, docId, false);
+                                UpdateAdjacentCell(sheet, row, cell, docId.ToUpper(), false, false);
                                 docIdColumn = cell.ColumnIndex;
                             }
                             else if (cellValue.Contains("PROCEDURE REF"))
                             {
-                                UpdateAdjacentCell(sheet, row, cell, procedureRef, false);
+                                UpdateAdjacentCell(sheet, row, cell, procedureRef.ToUpper(), false, false);
                                 procedureRefColumn = cell.ColumnIndex;
                             }
                             else if (cellValue.Contains("REVISION NO"))
                             {
-                                UpdateAdjacentCell(sheet, row, cell, revisionNo, false);
+                                UpdateAdjacentCell(sheet, row, cell, revisionNo.ToUpper(), false, false);
                                 revisionNoColumn = cell.ColumnIndex;
                             }
                             else if (cellValue.Contains("REVISION DATE"))
                             {
-                                UpdateAdjacentCell(sheet, row, cell, revisionDate, false);
+                                UpdateAdjacentCell(sheet, row, cell, revisionDate.ToUpper(), false, false);
                                 revisionDateColumn = cell.ColumnIndex;
                             }
                             else if (cellValue.Trim().ToLower().Contains("document name".ToLower()))
                             {
-                                UpdateAdjacentCell(sheet, row, cell, fileName, true);
+                                UpdateAdjacentCell(sheet, row, cell, fileName.ToUpper(), true, true);
                                 documentNameColumn = cell.ColumnIndex;
                             }
                             else if (cellValue.Contains("COPY NO."))
@@ -88,56 +92,56 @@ namespace PIFunc.XlsxHelper
 
                         if (docIdColumn != -1 && procedureRefColumn != -1 && docIdColumn < procedureRefColumn - 1)
                         {
-                            MergeBetweenCells(sheet, row.RowNum, docIdColumn + 1, procedureRefColumn - 1);
+                            //MergeBetweenCells(sheet, row.RowNum, docIdColumn + 1, procedureRefColumn - 1);
                         }
 
                         if (procedureRefColumn != -1 && procedureRefColumn + 1 <= maxBodyColumn)
                         {
-                            MergeBetweenCells(sheet, row.RowNum, procedureRefColumn + 1, maxBodyColumn);
+                            //MergeBetweenCells(sheet, row.RowNum, procedureRefColumn + 1, maxBodyColumn);
                         }
 
                         if (revisionNoColumn != -1 && revisionDateColumn != -1 && revisionNoColumn < revisionDateColumn - 1)
                         {
-                            MergeBetweenCells(sheet, row.RowNum, revisionNoColumn + 1, revisionDateColumn - 1);
+                            //MergeBetweenCells(sheet, row.RowNum, revisionNoColumn + 1, revisionDateColumn - 1);
                         }
 
                         if (revisionDateColumn != -1 && revisionDateColumn + 1 <= maxBodyColumn)
                         {
-                            MergeBetweenCells(sheet, row.RowNum, revisionDateColumn + 1, maxBodyColumn);
+                            //MergeBetweenCells(sheet, row.RowNum, revisionDateColumn + 1, maxBodyColumn);
                         }
 
                         if (documentNameColumn != -1 && documentNameColumn + 1 <= maxBodyColumn)
                         {
-                            MergeBetweenCells(sheet, row.RowNum, documentNameColumn + 1, maxBodyColumn, true, isBold: true);
+                            //MergeBetweenCells(sheet, row.RowNum, documentNameColumn + 1, maxBodyColumn, true, isBold: true);
                         }
 
                         if (pageColumn != -1)
                         {
-                            MergeBetweenCells(sheet, row.RowNum, pageColumn, maxBodyColumn);
+                            //MergeBetweenCells(sheet, row.RowNum, pageColumn, maxBodyColumn);
                         }
 
                         if (copyNoColumn != -1 && controlledStampColumn != -1 && copyNoColumn < controlledStampColumn - 1)
                         {
-                            MergeBetweenCells(sheet, row.RowNum, copyNoColumn + 1, controlledStampColumn - 1);
+                            //MergeBetweenCells(sheet, row.RowNum, copyNoColumn + 1, controlledStampColumn - 1);
                         }
 
                         if (controlledStampColumn != -1 && pageColumn != -1 && controlledStampColumn < pageColumn - 1)
                         {
-                            MergeBetweenCells(sheet, row.RowNum, controlledStampColumn + 1, pageColumn - 1);
+                            //MergeBetweenCells(sheet, row.RowNum, controlledStampColumn + 1, pageColumn - 1);
                         }
 
                         if (copyNoColumn != -1 && controlledStampColumn != -1 && pageColumn != -1)
                         {
-                            sheet.ShiftRows(row.RowNum + 1, sheet.LastRowNum, 2);
-                            IRow newRow1 = sheet.CreateRow(row.RowNum + 1);
-                            IRow newRow2 = sheet.CreateRow(row.RowNum + 2);
-                            MergeCells(sheet, newRow1, copyNoColumn, maxBodyColumn);
-                            MergeCells(sheet, newRow2, copyNoColumn, maxBodyColumn);
+                            //sheet.ShiftRows(row.RowNum + 1, sheet.LastRowNum, 2);
+                            //IRow newRow1 = sheet.CreateRow(row.RowNum + 1);
+                            //IRow newRow2 = sheet.CreateRow(row.RowNum + 2);
+                            //MergeCells(sheet, newRow1, copyNoColumn, maxBodyColumn);
+                            //MergeCells(sheet, newRow2, copyNoColumn, maxBodyColumn);
                         }
 
                         if (piIndustriesLtdColumn != -1)
                         {
-                            MergeBetweenCells(sheet, row.RowNum, piIndustriesLtdColumn, maxBodyColumn, centerText:true, removeRightBorder: true, allBorder: true, isBold:true);
+                            //MergeBetweenCells(sheet, row.RowNum, piIndustriesLtdColumn, maxBodyColumn, centerText:true, removeRightBorder: true, allBorder: true, isBold:true);
                         }
                     }
                 }
@@ -145,7 +149,149 @@ namespace PIFunc.XlsxHelper
                 using (var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write))
                 {
                     workbook.Write(fs);
-                    fs.Flush();
+                    //fs.Flush();
+
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"An error occurred: {ex.Message}");
+            }
+        }
+
+        public static void ModifyHeaderSection(HSSFWorkbook workbook, string docId, string procedureRef, string revisionNo, string revisionDate, string fileName, string filePath)
+        {
+            try
+            {
+                foreach (ISheet sheet in workbook)
+                {
+                    int maxBodyColumn = GetMaxUsedColumnInBody(sheet);
+                    Console.WriteLine(maxBodyColumn);
+                    for (int rowIndex = 0; rowIndex <= 4; rowIndex++)
+                    {
+                        IRow row = sheet.GetRow(rowIndex);
+                        if (row == null) continue;
+
+                        int docIdColumn = -1;
+                        int procedureRefColumn = -1;
+                        int revisionNoColumn = -1;
+                        int revisionDateColumn = -1;
+                        int documentNameColumn = -1;
+                        int copyNoColumn = -1;
+                        int controlledStampColumn = -1;
+                        int pageColumn = -1;
+                        int piIndustriesLtdColumn = -1;
+
+                        for (int cellIndex = 0; cellIndex < row.LastCellNum; cellIndex++)
+                        {
+                            ICell cell = row.GetCell(cellIndex);
+                            if (cell == null) continue;
+
+                            string cellValue = cell.ToString();
+
+                            if (cellValue.Contains("DOC ID"))
+                            {
+                                UpdateAdjacentCell(sheet, row, cell, docId.ToUpper(), false, false);
+                                docIdColumn = cell.ColumnIndex;
+                            }
+                            else if (cellValue.Contains("PROCEDURE REF"))
+                            {
+                                UpdateAdjacentCell(sheet, row, cell, procedureRef.ToUpper(), false, false);
+                                procedureRefColumn = cell.ColumnIndex;
+                            }
+                            else if (cellValue.Contains("REVISION NO"))
+                            {
+                                UpdateAdjacentCell(sheet, row, cell, revisionNo.ToUpper(), false, false);
+                                revisionNoColumn = cell.ColumnIndex;
+                            }
+                            else if (cellValue.Contains("REVISION DATE"))
+                            {
+                                UpdateAdjacentCell(sheet, row, cell, revisionDate.ToUpper(), false, false);
+                                revisionDateColumn = cell.ColumnIndex;
+                            }
+                            else if (cellValue.Trim().ToLower().Contains("document name".ToLower()))
+                            {
+                                UpdateAdjacentCell(sheet, row, cell, fileName.ToUpper(), true, true);
+                                documentNameColumn = cell.ColumnIndex;
+                            }
+                            else if (cellValue.Contains("COPY NO."))
+                            {
+                                copyNoColumn = cell.ColumnIndex;
+                            }
+                            else if (cellValue.Contains("Controlled, If stamped in red."))
+                            {
+                                controlledStampColumn = cell.ColumnIndex;
+                            }
+                            else if (cellValue.Contains("PAGE:"))
+                            {
+                                pageColumn = cell.ColumnIndex;
+                            }
+                            else if (cellValue.Contains("PI INDUSTRIES LTD") || cellValue.Contains("PI INDUSTURIES LTD"))
+                            {
+                                piIndustriesLtdColumn = cell.ColumnIndex;
+                            }
+                        }
+
+                        if (docIdColumn != -1 && procedureRefColumn != -1 && docIdColumn < procedureRefColumn - 1)
+                        {
+                            //MergeBetweenCells(sheet, row.RowNum, docIdColumn + 1, procedureRefColumn - 1);
+                        }
+
+                        if (procedureRefColumn != -1 && procedureRefColumn + 1 <= maxBodyColumn)
+                        {
+                            //MergeBetweenCells(sheet, row.RowNum, procedureRefColumn + 1, maxBodyColumn);
+                        }
+
+                        if (revisionNoColumn != -1 && revisionDateColumn != -1 && revisionNoColumn < revisionDateColumn - 1)
+                        {
+                            //MergeBetweenCells(sheet, row.RowNum, revisionNoColumn + 1, revisionDateColumn - 1);
+                        }
+
+                        if (revisionDateColumn != -1 && revisionDateColumn + 1 <= maxBodyColumn)
+                        {
+                            //MergeBetweenCells(sheet, row.RowNum, revisionDateColumn + 1, maxBodyColumn);
+                        }
+
+                        if (documentNameColumn != -1 && documentNameColumn + 1 <= maxBodyColumn)
+                        {
+                            //MergeBetweenCells(sheet, row.RowNum, documentNameColumn + 1, maxBodyColumn, true, isBold: true);
+                        }
+
+                        if (pageColumn != -1)
+                        {
+                            //MergeBetweenCells(sheet, row.RowNum, pageColumn, maxBodyColumn);
+                        }
+
+                        if (copyNoColumn != -1 && controlledStampColumn != -1 && copyNoColumn < controlledStampColumn - 1)
+                        {
+                            //MergeBetweenCells(sheet, row.RowNum, copyNoColumn + 1, controlledStampColumn - 1);
+                        }
+
+                        if (controlledStampColumn != -1 && pageColumn != -1 && controlledStampColumn < pageColumn - 1)
+                        {
+                            //MergeBetweenCells(sheet, row.RowNum, controlledStampColumn + 1, pageColumn - 1);
+                        }
+
+                        if (copyNoColumn != -1 && controlledStampColumn != -1 && pageColumn != -1)
+                        {
+                            //sheet.ShiftRows(row.RowNum + 1, sheet.LastRowNum, 2);
+                            //IRow newRow1 = sheet.CreateRow(row.RowNum + 1);
+                            //IRow newRow2 = sheet.CreateRow(row.RowNum + 2);
+                            //MergeCells(sheet, newRow1, copyNoColumn, maxBodyColumn);
+                            //MergeCells(sheet, newRow2, copyNoColumn, maxBodyColumn);
+                        }
+
+                        if (piIndustriesLtdColumn != -1)
+                        {
+                            //MergeBetweenCells(sheet, row.RowNum, piIndustriesLtdColumn, maxBodyColumn, centerText:true, removeRightBorder: true, allBorder: true, isBold:true);
+                        }
+                    }
+                }
+
+                using (var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write))
+                {
+                    workbook.Write(fs);
+                    //fs.Flush();
 
                 }
             }
@@ -233,7 +379,7 @@ namespace PIFunc.XlsxHelper
 
 
 
-        private static void UpdateAdjacentCell(ISheet sheet, IRow row, ICell cell, string newValue, bool isBold)
+        private static void UpdateAdjacentCell(ISheet sheet, IRow row, ICell cell, string newValue, bool isBold, bool isCenter)
         {
             int columnIndex = cell.ColumnIndex;
             ICell nextCell = row.GetCell(columnIndex + 1) ?? row.CreateCell(columnIndex + 1);
@@ -251,6 +397,17 @@ namespace PIFunc.XlsxHelper
             ICellStyle style = sheet.Workbook.CreateCellStyle();
             style.SetFont(font);  // Assign the font to the style
             style.WrapText = true;  // Enable text wrapping
+                                    //for add border around the cell
+            style.BorderTop = BorderStyle.Thin;
+            style.BorderBottom = BorderStyle.Thin;
+            style.BorderLeft = BorderStyle.Thin;
+            style.BorderRight = BorderStyle.Thin;
+            if (isCenter)
+            {
+                style.Alignment = HorizontalAlignment.Center;
+                style.VerticalAlignment = VerticalAlignment.Center;
+            }
+
 
             // Apply the style to the adjacent cell
             nextCell.CellStyle = style;
@@ -374,5 +531,65 @@ namespace PIFunc.XlsxHelper
             // Copy images from old workbook to new workbook
             CopyImages(oldWorkbook, newWorkbook);
         }
+
+        public static IActionResult ModifyHeaderTitle(XSSFWorkbook workbook, string Title, string filePath)
+        {
+            try
+            {
+                bool changeMade = false;
+                foreach (ISheet sheet in workbook)
+                {
+                  
+                    for (int rowIndex = 0; rowIndex <= 4; rowIndex++)
+                    {
+                        IRow row = sheet.GetRow(rowIndex);
+                        if (row == null) continue;
+
+                        for (int cellIndex = 0; cellIndex < row.LastCellNum; cellIndex++)
+                        {
+                            ICell cell = row.GetCell(cellIndex);
+                            if (cell == null) continue;
+
+                            string cellValue = cell.ToString();
+
+                            if (cellValue.Contains("PI INDUSTRIES LTD"))
+                            {
+                                return new JsonResult(new { message = "NO change found, 'PI INDUSTRIES LTD' already exists." });
+                            }
+                            else if (cellValue.Contains("PI INDUSTURIES LTD"))
+                            {
+
+                                cell.SetCellValue("PI INDUSTRIES LTD");
+                                changeMade = true;
+                            }
+                            
+                        }
+                    }
+                }
+
+                if (changeMade)
+                {
+                    
+                    using (var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write))
+                    {
+                        workbook.Write(fs);
+                    }
+
+                    
+                    return new JsonResult(new { message = "'PI INDUSTURIES LTD' corrected to 'PI INDUSTRIES LTD'." });
+                }
+                else
+                {
+                    // Return a message indicating no changes were necessary
+                    return new JsonResult(new { message = "NO change found." });
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"An error occurred: {ex.Message}");
+                return new JsonResult(new { error = $"An error occurred: {ex.Message}" });
+            }
+        }
+
     }
 }

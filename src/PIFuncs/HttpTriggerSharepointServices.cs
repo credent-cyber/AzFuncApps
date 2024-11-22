@@ -28,6 +28,7 @@ namespace Demo.Function
     using PIFunc.XlsxHelper;
     using ClosedXML.Excel;
     using NPOI.XSSF.UserModel;
+    using NPOI.HSSF.UserModel;
 
     public class HttpTriggerSharepointServices
     {
@@ -105,6 +106,17 @@ namespace Demo.Function
 
                     else
                     {
+                        //var isXlsx = false;
+                        //var isDocx = false;
+                        //if ((Path.GetExtension(flname).ToLower() == ".xlsx") || (Path.GetExtension(flname).ToLower() == ".xls"))
+                        //{
+                        //    isXlsx = true;
+                        //}
+                        //if ((Path.GetExtension(flname).ToLower() == ".docx") || (Path.GetExtension(flname).ToLower() == ".doc"))
+                        //{
+                        //    isDocx = true;
+                        //}
+
                         //flname = "PM-PN01-QL-QA-01-V11.xlsx";
                         var isXlsx = Path.GetExtension(flname) == ".xlsx" ? true : false;
                         var isDocx = Path.GetExtension(flname) == ".docx" ? true : false;
@@ -157,8 +169,10 @@ namespace Demo.Function
                         if (isXlsx)
                         {
                             var auditHistory = new AuditHistory();
+                            //var approvalHistory = new AppendApprovalHistory();
                             var data = GetHistoryDataArray(historyItems);
                             auditHistory.Append(tmpDocx, null, data);
+                            //approvalHistory.Append(tmpDocx, null, data);
                         }
 
                         try
@@ -167,7 +181,7 @@ namespace Demo.Function
 
                             var versionHandler = new SharePointFileHandler(_pnpContextFactory, _configuration);
                             // await versionHandler.MoveLowerVersionsToArchiveAsync(destinationLibrary, flname);
-                            //await versionHandler.MoveLowerVersionsToArchiveAsync(destSpFolder, flname, docid);
+                            // await versionHandler.MoveLowerVersionsToArchiveAsync(destSpFolder, flname, docid);
                         }
                         catch (Exception ex)
                         {
@@ -293,6 +307,7 @@ namespace Demo.Function
 
             try
             {
+                
                 var result = new { };
                 string docid, libname, flname, destSpFolder, targetSite;
                 bool download;
@@ -317,13 +332,25 @@ namespace Demo.Function
                     if (file == null || string.IsNullOrEmpty(docid))
                         return new NotFoundResult();
 
-                    //flname = "TEST EXCEL TEMPLATE.xlsx";
+                    //flname = @"PM-PN01-HR-HR-1-V35.xlsx";
                     // Check file extension to determine if it's Excel or Word
+                    
                     var extension = Path.GetExtension(flname).ToLower();
-                    var isExcel = extension == ".xlsx";
-                    var isDocx = extension == ".docx";
+                    //var isExcel = extension == ".xlsx";
+                    //var isDocx = extension == ".docx";
 
-                    //var fileBytes = File.ReadAllBytes(@"C:\Users\ChhaganSinha\Downloads\TEST EXCEL TEMPLATE.xlsx");
+                    var isExcel = false;
+                    var isDocx = false;
+                    if ((Path.GetExtension(flname).ToLower() == ".xlsx") || (Path.GetExtension(flname).ToLower() == ".xls"))
+                    {
+                        isExcel = true;
+                    }
+                    if ((Path.GetExtension(flname).ToLower() == ".docx") || (Path.GetExtension(flname).ToLower() == ".doc"))
+                    {
+                        isDocx = true;
+                    }
+
+                    //var fileBytes = File.ReadAllBytes(@"C:\Users\ChhaganSinha\Downloads\PM-PN01-HR-HR-1-V35.xlsx");
                     // Get file content bytes
                     var bytes = file.GetContentBytes();
                     var tmpflName = Guid.NewGuid().ToString();
@@ -337,13 +364,62 @@ namespace Demo.Function
                     {
                         //using (var workbook = new XLWorkbook(tmpFile))
                         //{
-                        //    //EditExcelHeader.ModifyHeaderSection(workbook, docid, fileInfo.ProcedureRef, fileInfo.RevisionNo.ToUpper(), fileInfo.RevisionDate, fileInfo.FileName);
+                        //    EditExcelHeader.ModifyHeaderSection(workbook, docid, fileInfo.ProcedureRef, fileInfo.RevisionNo.ToUpper(), fileInfo.RevisionDate, fileInfo.FileName);
                         //}
 
-                        using (var fileStream = new FileStream(tmpFile, FileMode.Open, FileAccess.ReadWrite))
+                        //using (var fileStream = new FileStream(tmpFile, FileMode.Open, FileAccess.Read))
+                        //{
+                        //    fileStream.Position = 0;
+                        //    // XSSFWorkbook workbook = new XSSFWorkbook(fileStream);
+                        //    HSSFWorkbook workbook = new HSSFWorkbook(fileStream);
+                        //    //AuditHistoryNPOI.ModifyHeaderSection(workbook, "docid", "fileInfo.ProcedureRef", "fileInfo.RevisionNo.ToUpper()", "fileInfo.RevisionDate", "fileInfo.FileName",tmpFile);
+                        //}
+
+                        string extensions = Path.GetExtension(tmpFile).ToLower();
+
+                        if (extensions == ".xls")
                         {
-                            XSSFWorkbook workbook = new XSSFWorkbook(fileStream);
-                            AuditHistoryNPOI.ModifyHeaderSection(workbook, docid, fileInfo.ProcedureRef, fileInfo.RevisionNo.ToUpper(), fileInfo.RevisionDate, fileInfo.FileName,tmpFile);
+                            using (var fileStream = new FileStream(tmpFile, FileMode.Open, FileAccess.Read))
+                            {
+                                HSSFWorkbook workbook = new HSSFWorkbook(fileStream);
+                                AuditHistoryNPOI.ModifyHeaderSection(workbook, docid, fileInfo.ProcedureRef, fileInfo.RevisionNo.ToUpper(), fileInfo.RevisionDate, fileInfo.FileName, tmpFile);
+
+                                using (var memoryStream = new MemoryStream())
+                                {
+                                    workbook.Write(memoryStream); // Write changes to memory stream
+                                    var updatedBytes = memoryStream.ToArray(); // Convert to byte array immediately
+
+                                    // Write the updated bytes back to the file
+                                    File.WriteAllBytes(tmpFile, updatedBytes); // Save to the temp file
+                                }
+                            }
+                        }
+                        else if (extensions == ".xlsx")
+                        {
+                            // Open the file stream to read the original file content
+                            using (var fileStream = new FileStream(tmpFile, FileMode.Open, FileAccess.Read))
+                            {
+                                XSSFWorkbook workbook = new XSSFWorkbook(fileStream);
+
+                                // Modify the workbook with your custom method
+                                AuditHistoryNPOI.ModifyHeaderSection(workbook, docid, fileInfo.ProcedureRef, fileInfo.RevisionNo.ToUpper(), fileInfo.RevisionDate, fileInfo.FileName, tmpFile);
+
+                                // Use a second MemoryStream to avoid reusing a closed stream
+                                using (var memoryStream = new MemoryStream())
+                                {
+                                    workbook.Write(memoryStream); // Write changes to memory stream
+                                    var updatedBytes = memoryStream.ToArray(); // Convert to byte array immediately
+
+                                    // Write the updated bytes back to the file
+                                    File.WriteAllBytes(tmpFile, updatedBytes); // Save to the temp file
+                                }
+                            }
+                        }
+
+
+                        else
+                        {
+                            throw new InvalidOperationException("Unsupported file format.");
                         }
 
 
@@ -387,6 +463,108 @@ namespace Demo.Function
             }
         }
 
+
+        //[FunctionName("HttpTrigger1MyFunc2HeaderUpdate2")]
+        //public async Task<IActionResult> HeaderUpdate2(
+        //   [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequestMessage req)
+        //{
+        //    #region Parameters
+        //    Logger.LogInformation("C# HTTP trigger function processed a request.");
+
+        //    try
+        //    {
+        //        var result = new { };
+        //        string docid, libname, flname, destSpFolder, targetSite;
+        //        bool download;
+
+        //        // Read parameters from the request
+        //        ReadDocumentApprovalHistoryParameters(req, out docid, out libname, out flname, out download, out destSpFolder, out targetSite);
+        //        #endregion
+
+        //        using (var ctx = await _pnpContextFactory.CreateAsync(targetSite))
+        //        {
+        //            var fileInfo = await QueryFileAndMetaData(libname, flname, ctx);
+
+        //            if (string.IsNullOrWhiteSpace(docid))
+        //                docid = fileInfo.Id.ToString();
+
+        //            var destinationLibrary = await ctx.Web.Lists.GetByTitleAsync(destSpFolder, l => l.RootFolder);
+        //            var shareDocuments = await ctx.Web.Lists.GetByTitleAsync(libname, l => l.RootFolder);
+        //            IFile file = shareDocuments.RootFolder.Files.FirstOrDefault(o => o.Name == flname);
+
+        //            var folderContents = await shareDocuments.RootFolder.GetAsync(o => o.Files);
+
+        //            if (file == null || string.IsNullOrEmpty(docid))
+        //                return new NotFoundResult();
+
+        //            //flname = @"PPProcess map.xlsx";
+        //            // Check file extension to determine if it's Excel or Word
+        //            var extension = Path.GetExtension(flname).ToLower();
+        //            var isExcel = extension == ".xlsx";
+        //            var isDocx = extension == ".docx";
+
+        //            //var fileBytes = File.ReadAllBytes(@"C:\Users\ChhaganSinha\Downloads\PPProcess map.xlsx");
+        //            // Get file content bytes
+        //            var bytes = file.GetContentBytes();
+        //            var tmpflName = Guid.NewGuid().ToString();
+        //            var tmpFile = Path.Combine(Path.GetTempPath(), $"{tmpflName}{extension}");
+
+        //            File.WriteAllBytes(tmpFile, bytes);
+        //            //File.WriteAllBytes(tmpFile, fileBytes);
+
+        //            IActionResult ChangeResponce = null;
+
+        //            // Handle Excel files
+        //            if (isExcel)
+        //            {
+        //                using (var fileStream = new FileStream(tmpFile, FileMode.Open, FileAccess.ReadWrite))
+        //                {
+        //                    XSSFWorkbook workbook = new XSSFWorkbook(fileStream);
+        //                    string Title = "PI INDUSTRIES LTD";
+        //                    ChangeResponce = AuditHistoryNPOI.ModifyHeaderTitle(workbook, Title, tmpFile);
+        //                }
+
+
+        //            }
+
+                    
+        //            // Handle Word documents
+        //            else if (isDocx)
+        //            {
+        //                using (var doc = WordprocessingDocument.Open(tmpFile, true))
+        //                {
+        //                    ChangeResponce =  EditDocumentHeader.ModifyHeaderTitle(doc, fileInfo.FileName);
+        //                }
+        //            }
+
+        //            try
+        //            {
+        //                // Publish the modified file back
+        //                await PublishDocument(flname, shareDocuments, tmpFile);
+
+        //                if (download)
+        //                {
+        //                    return DownloadPublishedDocument(flname, tmpFile);
+        //                }
+
+        //            }
+        //            catch (Exception ex)
+        //            {
+        //                Console.Error.WriteLine(ex.Message);
+        //            }
+
+        //            return new JsonResult(new { Success = true, ChangeResponce });
+        //        }
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        Logger.LogCritical(ex, ex.Message);
+        //        return new ObjectResult(new { Error = ex.Message })
+        //        {
+        //            StatusCode = 500
+        //        };
+        //    }
+        //}
 
         /// <summary>
         /// Wrapper function for Run2 - new name with same functionality

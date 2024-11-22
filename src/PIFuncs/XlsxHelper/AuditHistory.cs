@@ -10,7 +10,7 @@ namespace XlsxHelper
         public void Append(string xlsxFilename, string[] headers, List<string[]> data, string tagLabel = "Approval History")
         {
             if (xlsxFilename == null || Path.GetExtension(xlsxFilename) != ".xlsx")
-                throw new ArgumentNullException("Invalid output filename");
+                throw new ArgumentNullException("Invalid output filename(Pass xlsx file)");
 
             if (data == null)
                 throw new ArgumentNullException("Invalid data specified");
